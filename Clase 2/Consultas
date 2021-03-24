@@ -1,0 +1,7 @@
+
+Si se ejecuta exec desde un proceso, el siguiente proceso mantiene el pid,
+que pasa con la estructura del primer proceso? (se elimina la informacion? quedan remanentes 
+del proceso anterior?) 
+
+Es decir, la nueva imagen que sobreescribe el proceso pasa por el estado de "nuevo"?
+
