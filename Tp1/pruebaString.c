@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <wait.h>
 #define SIZE 1024
 
 
@@ -62,6 +64,11 @@ char** filtrar_argumentos(char* argumento){
             token = strtok(NULL, " ");
 
         }
+
+        sizeArgumentos++;
+        indiceArgumento = sizeArgumentos - 1;
+        argumentos = asignar_size(sizeArgumentos,0,argumentos);
+        argumentos[indiceArgumento] = NULL;
         
     }
 
@@ -72,24 +79,43 @@ char** filtrar_argumentos(char* argumento){
 }
 
 
-
 int main(int argc, char* argv[]){
 
     char argumento[SIZE];
     char* token;
     char** argumentos;
-
+    int out,r;
+    char *args[] = {"./pruebaString", "&", NULL};
     
-    printf("%s:$ ",argv[0]);
-    scanf("%[^\n]s",argumento);
+    while(1){
+         
+    printf("\n%s:$ ",argv[0]);
+    fgets(argumento,SIZE,stdin);
+
     printf("[argumentos] %s\n",argumento);
     
     argumentos = filtrar_argumentos(argumento);
-    
+    r=fork();
+    if(r==0){
+        printf("estoy en el hijo\n");
+        printArgumentos(3,argumentos);
+        r=execv(argumentos[0],argumentos);
+          if( r < 0){
+            perror("Algo pasó!");
+         }
+
+    }else{
+        wait(NULL);
+        printf("termine");
+
+        }
+    }
     
     liberar_memoria(argumentos);
     
     return 0;
 }
+
+
 
 
