@@ -1,5 +1,6 @@
 #include<stdio.h> /* Printfs */
 #include<unistd.h> /* getpid */
+#include<stdlib.h>
 
 int main(int argc, char **argv) {
 

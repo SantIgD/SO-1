@@ -7,6 +7,16 @@
 #define SIZE 1024
 #define TERMINAR 10
 
+void liberar_memoria(char** argumentos){
+
+    for(int i = 0; argumentos[i+1] != NULL; i++){
+        free(argumentos[i]);
+    }
+    
+    free(argumentos);
+
+}
+
 void charppcpy(char dest[][100],char** source ,int sizeArgumentos){
 
     printf("[size] %d\n",sizeArgumentos);
@@ -27,9 +37,20 @@ int cantidad_elementos_charpp(char** argumentos){
 
     }
 
-    return contador;
+    return (contador+1);
 
 }
+
+void printArgumentos(int sizeArgumentos, char** argumentos){
+
+
+    for (int i =0; i < sizeArgumentos; i++){
+
+            printf("[%d]%s\n",i,argumentos[i]);
+        }
+        
+}
+
 
 char** asignar_size(int sizeArgumentos, int lenArgumento, char** argumentos){
 
@@ -43,22 +64,7 @@ char** asignar_size(int sizeArgumentos, int lenArgumento, char** argumentos){
 
 }
 
-void liberar_memoria(char** argumentos){
 
-    for(int i = 0; argumentos[i+1] != NULL; i++){
-        free(argumentos[i]);
-    }
-    
-    free(argumentos);
-
-}
-
-void printArgumentos(int sizeArgumentos, char** argumentos){
-
-    for (int i =0; i < sizeArgumentos; i++)
-            printf("[%d]%s\n",i,argumentos[i]);
-        
-}
 
 char** concatenar_argumento(int sizeArgumentos,int sizeArgumento, char** argumentos, char* argumento ){
 
@@ -123,22 +129,16 @@ int simulacion_consola(char** argv){
     
     argumentosOurs = filtrar_argumentos(argumento);
     
-    
-    
-    cantArgumentos = 2//cantidad_elementos_charpp(argumentosOurs);
+    cantArgumentos = cantidad_elementos_charpp(argumentosOurs);
     char argumentosSO[cantArgumentos][100];
-    //char** arg = (char **) argumentosSO;
-
-    
-
     
     
-    charppcpy(argumentosSO,argumentosOurs,cantArgumentos);
+    //charppcpy(argumentosSO,argumentosOurs,cantArgumentos-1);
     //printArgumentos(cantArgumentos,argumentosSO);
     //arg[cantArgumentos] = NULL;
     //printArgumentos(cantArgumentos,arg);
-    
-    r=execv(argumentosSO[0],argumentosSO);
+
+    r=execv(argumentosOurs[0],argumentosOurs);
     liberar_memoria(argumentosOurs);
     printf("%d\n",r);
 
