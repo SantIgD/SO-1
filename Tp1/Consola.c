@@ -51,7 +51,6 @@ void printArgumentos(int sizeArgumentos, char** argumentos){
         
 }
 
-
 char** asignar_size(int sizeArgumentos, int lenArgumento, char** argumentos){
 
     int indiceArgumento = sizeArgumentos - 1;
@@ -64,14 +63,12 @@ char** asignar_size(int sizeArgumentos, int lenArgumento, char** argumentos){
 
 }
 
-
-
-char** concatenar_argumento(int sizeArgumentos,int sizeArgumento, char** argumentos, char* argumento ){
+char** concatenar_argumento(int sizeArgumentos,int sizeArgumento, char** argumentos, char* entradaTerminal ){
 
     argumentos = asignar_size(sizeArgumentos,sizeArgumento,argumentos);
     
-    if (argumento != NULL){
-        argumentos[sizeArgumentos - 1] = strcpy(argumentos[sizeArgumentos - 1] ,argumento);
+    if (entradaTerminal != NULL){
+        argumentos[sizeArgumentos - 1] = strcpy(argumentos[sizeArgumentos - 1] ,entradaTerminal);
     }else{
         argumentos[sizeArgumentos - 1] = NULL;
     }
@@ -80,13 +77,13 @@ char** concatenar_argumento(int sizeArgumentos,int sizeArgumento, char** argumen
 
 }
 
-char** filtrar_argumentos(char* argumento){
+char** estructurar_argumentos(char* entradaTerminal){
     
     int sizeArgumentos = 1;
     char** argumentos = NULL;
     char* token;
 
-    token = strtok(argumento, " ");
+    token = strtok(entradaTerminal, " ");
     
     if (token != NULL){
 
@@ -110,77 +107,132 @@ char** filtrar_argumentos(char* argumento){
         argumentos=concatenar_argumento(sizeArgumentos,0,argumentos,NULL);
     }
 
-    printArgumentos(sizeArgumentos,argumentos);
+    //printArgumentos(sizeArgumentos,argumentos);
 
     return argumentos;
 
+}
+
+void leer_linea(char destino[SIZE],char** argv){
+
+    printf("%s:$ ",argv[0]);
+
+    fflush( stdin );
+    //fgets(destino,SIZE,stdin);
+   
+    scanf(" %[^\n]s",destino);
+  
+    //printf("[argumentos] %s\n",destino);
+
+}
+
+int isChild(pid_t forkOut){
+    int response=0;
+    
+    if (forkOut == 0){
+        response++;
+    }
+        
+    return response;
+}
+
+int isForkError(pid_t forkOut){
+    int response=0;
+    
+    if (forkOut == -1){
+        response++;
+    }
+        
+    return response;
+}
+
+int isExecError(int result){
+    int response=0;
+    
+    if (result == -1){
+        response++;
+    }
+        
+    return response;
+}
+
+int ampersandBelong(char* argumento){
+    int response = 0;
+
+    if (!strcmp(argumento,"&")){
+        response++;
+    }
+    return response;
+}
+
+int isTerminar(char* argumento){
+    
+    int response = 0;
+
+    if (!strcmp(argumento,"&")){
+        response++;
+    }
+    return response;
 }
 
 int simulacion_consola(char** argv){
     
-    char argumento[SIZE];
-    char** argumentosOurs;
-    int cantArgumentos,r;
-
-    
-    printf("%s:$ ",argv[0]);
-    scanf("%[^\n]s",argumento);
-    printf("[argumentos] %s\n",argumento);
-    
-    argumentosOurs = filtrar_argumentos(argumento);
-    
-    cantArgumentos = cantidad_elementos_charpp(argumentosOurs);
-    char argumentosSO[cantArgumentos][100];
-    
-    
-    //charppcpy(argumentosSO,argumentosOurs,cantArgumentos-1);
-    //printArgumentos(cantArgumentos,argumentosSO);
-    //arg[cantArgumentos] = NULL;
-    //printArgumentos(cantArgumentos,arg);
-
-    r=execv(argumentosOurs[0],argumentosOurs);
-    liberar_memoria(argumentosOurs);
-    printf("%d\n",r);
-
-    
-}
-
-/* /home/charles_chaplin/Desktop/SOI/SO-1/Clase2/Ejemplos/Exec/HelloPid
-char** entradaConsola(char** argumentos){
-    
-    printf("%s $",argv[0]);
-    scanf("%s",&argumentos);
-
-    argumentos = filtrar_argumentos(argumentos);
-    
-    return argumentos;
-}
-*/
-
-int main(int argc, char*argv[]){
-
+    char entradaTerminal[SIZE];
+    char** argumentos;
+    int r,status=0,cantArgumentos=0;
     pid_t forkOut;
-    int status=0;
-    simulacion_consola(argv);
-    /*while (status != TERMINAR){
-        
-        forkOut = fork();
-        
-        if (forkOut < 0){ // ERROR
-            perror("Ha ocurrido un error salvaje! ");
-        }else if (forkOut == 0){ // hijo, consola
 
-            simulacion_consola();
 
-        _exit()
-        }else{
+    while(1){
+
+        //Parent
+        leer_linea(entradaTerminal,argv);
+        argumentos = estructurar_argumentos(entradaTerminal);
+        cantArgumentos = cantidad_elementos_charpp(argumentos);
+
+        forkOut=fork();
+
+        if (isForkError(forkOut)){
+
+            perror("Error fork");
+
+        }else if(isChild(forkOut)){
+
+            r=execv(argumentos[0],argumentos);
+        
+            if(isExecError(r)){
+                liberar_memoria(argumentos);
+                perror("Error exec");
+                _exit(0);
+            }
             
-            wait(&status); // para exit definitivo
+        }else{
+            // parent
+            //printf("[______]%d\n",ampersandBelong(argumentos[cantArgumentos-2]));
+            if (!ampersandBelong(argumentos[cantArgumentos-2])){ // EL ultimo es NULL
+                //printf("No exploto todavia\n");
+                wait(&status);
+            }
+            
+            strcpy(entradaTerminal,"");
         }
 
     }
-    */    
+
+    liberar_memoria(argumentos);
+    
     return 0;
+    
+}
+
+
+/* /home/charles_chaplin/Desktop/SOI/SO-1/Clase2/Ejemplos/Exec/HelloPid */
+
+
+int main(int argc, char*argv[]){
+
+    return simulacion_consola(argv);
+
 }
 
 
