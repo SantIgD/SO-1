@@ -53,25 +53,25 @@ void * generarPunto (void * arg){
     /* La memoria que nos mandan es de un entero */
     
     
-    int lado = 4*RADIO;
+    double lado = 4*RADIO;
     double* centro = malloc(sizeof(double) * 2);
     double* punto=malloc(sizeof(double) * 2);
     int seed = *(int*) arg;
     srand48(seed);
     int res=0;
 
-    //printf("[Hilo] %d [Seed] %f \n",*(int*) arg,seed);
+    //printf("[Hilo] %d [Seed] %d \n",*(int*) arg,seed);
 
     centro[1] = lado/2;
     centro[2] = lado/2;
 
     generarCoordenadas(lado,punto);
 
-    printf("[Hilo] %d [Seed] %d [p] (%f,%f) \n",*(int*) arg,seed,punto[0],punto[1]);
+//    printf("[Hilo] %d [Seed] %d [p] (%f,%f) \n",*(int*) arg,seed,punto[0],punto[1]);
 
     double distCentro = distancia(punto,centro);
+    printf("[Hilo] %d [Seed] %d [p] (%f,%f) [dist] %f \n",*(int*) arg,seed,punto[0],punto[1],distCentro);
 
-    //printf("mod [(%f,%f)-(%f,%f)] = %f \n",lado/2,lado/2,punto[1],punto[2],distCentro);
 
     if(distCentro <= RADIO){
         res+=1;
