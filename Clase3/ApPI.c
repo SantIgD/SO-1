@@ -1,10 +1,10 @@
 #include <pthread.h>
 #include <stdio.h>
-#include<stdlib.h> /*STD error output*/
+#include<stdlib.h> /STD error output/
 #include<unistd.h>
 #include<time.h>
 #include <math.h>
-#define NPUNTOS 10
+#define NPUNTOS 30100
 #define RADIO 10
 
 double generarRandom(int max){
@@ -24,27 +24,14 @@ void generarCoordenadas(double max,double* coordenadas){
 }
 
 
-
-double modulo(double coordenadas[2]){
-    double modulo=0;
-
-    for(int i=0; i<2; i++){
-        modulo += pow(coordenadas[i],2);
-    }
-
-    return sqrt(modulo);
-
-}
-
 double distancia(double* punto, double* centro){
     double distancia[2];
 
     for(int i=0; i<2; i++){
 
-        distancia[i] = centro[i] - punto[i];
+        distancia[i] = pow(centro[i] - punto[i],2);
     }
-
-    return modulo(distancia);
+    return sqrt(distancia[0]+distancia[1]);
 
 }
 
@@ -53,41 +40,30 @@ void * generarPunto (void * arg){
     /* La memoria que nos mandan es de un entero */
     
     
-    double lado = 4*RADIO;
-    double* centro = malloc(sizeof(double) * 2);
-    double* punto=malloc(sizeof(double) * 2);
-    int seed = *(int*) arg;
+    double lado = 2*RADIO;
+    double centro[2],punto[2];
+    int seed = (int) arg;
     srand48(seed);
     int res=0;
 
-    //printf("[Hilo] %d [Seed] %d \n",*(int*) arg,seed);
+    //printf("[Hilo] %d [Seed] %d \n",(int) arg,seed);
 
+    centro[0] = lado/2;
     centro[1] = lado/2;
-    centro[2] = lado/2;
+    //printf("[centro circunferencia]%f---%f",centro[1],centro[2]);
 
     generarCoordenadas(lado,punto);
 
-//    printf("[Hilo] %d [Seed] %d [p] (%f,%f) \n",*(int*) arg,seed,punto[0],punto[1]);
+//    printf("[Hilo] %d [Seed] %d [p] (%f,%f) \n",(int) arg,seed,punto[0],punto[1]);
 
     double distCentro = distancia(punto,centro);
-    printf("[Hilo] %d [Seed] %d [p] (%f,%f) [dist] %f \n",*(int*) arg,seed,punto[0],punto[1],distCentro);
+   // printf("[Hilo] %d [Seed] %d [p] (%f,%f) [dist] %f \n",(int) arg,seed,punto[0],punto[1],distCentro);
 
 
     if(distCentro <= RADIO){
-        res+=1;
+        (int) arg=-1;
     }
-
-    /*if(res == 1){
-        printf("(%f,%f) pertenece al circulo\n",punto[1],punto[2]);
-    }else{
-        printf("(%f,%f) no pertenece al circulo\n",punto[1],punto[2]);
-    }
-    */
-
-    free(punto);
-    free(centro);
-
-    pthread_exit(res);
+    pthread_exit(EXIT_SUCCESS);
 }
 
 int main(int argc,char** argv){
@@ -122,25 +98,18 @@ int main(int argc,char** argv){
 
     for (int i =0; i<NPUNTOS; i++){
 
-        if (pthread_join(ths[i],(void*)&inside) // es bloqueante
+        if (pthread_join(ths[i],NULL) // es bloqueante
             != 0){
 
                 perror("Fallo la espera de un Hilo");
                 _exit(EXIT_FAILURE);
-        }else{
-            //printf("[in] %d\n",inside);
-            if (inside == 1){
-                //printf("[pc] %d\n",puntosCirc);
-                //getchar();
-                puntosCirc =10;
-                //printf("[pc] %d\n",puntosCirc);
-            }
-            //printf("[pc] %d\n",puntosCirc);
         }
+        if(args[i]==-1)
+            puntosCirc++; 
     }
-
-
-    printf("[pc] %d, Pi = %d\n",puntosCirc, (puntosCirc)*4/NPUNTOS);
+    puntosCirc=puntosCirc*4;
+    double result=((double)puntosCirc/(double)NPUNTOS);
+    printf("[pc] %d, Pi = %f\n",puntosCirc/4, result);
 
     return 0;
 }
