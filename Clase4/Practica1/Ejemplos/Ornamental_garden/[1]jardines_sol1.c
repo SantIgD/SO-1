@@ -4,7 +4,7 @@
 #include <assert.h>
 
 #define MOLS 2
-#define VISITANTES 1000000
+#define VISITANTES 1000
 
 /* Cantidad de visitantes en el Jardín */
 long int visitantes;
@@ -22,7 +22,7 @@ void *molinete(void *arg){
     { /* tomar_mutex */
       victima = id;
       while(victima == id)
-        printf("Esperando %ld",id);
+        printf("Esperando %ld\n",id);
     }
 	  //BEGIN: región crítica
     visitantes ++;
