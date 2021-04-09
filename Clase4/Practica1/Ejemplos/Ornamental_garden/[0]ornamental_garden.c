@@ -8,7 +8,7 @@
 #include<stdlib.h>
 
 /* Constantes */
-#define NVisitantes 10000
+#define NVisitantes 100000
 
 /*
   Problema introductorio a exclusión mutua.
@@ -16,7 +16,7 @@
 
 void * turnstile(void *argV){
   for(int j = 0; j < NVisitantes; j++)
-    (*(int *)argV) ++ ;
+    (*(int *)argV) ++;
   return NULL;
 }
 
