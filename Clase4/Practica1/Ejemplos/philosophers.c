@@ -81,7 +81,11 @@ int main()
   for (i=0;i<N_FILOSOFOS;i++)
     pthread_mutex_init(&tenedor[i], NULL);
   
+<<<<<<< Updated upstream
   
+=======
+
+>>>>>>> Stashed changes
   int args[5];
   for (i=0;i<N_FILOSOFOS;i++){
     args[i]=i;

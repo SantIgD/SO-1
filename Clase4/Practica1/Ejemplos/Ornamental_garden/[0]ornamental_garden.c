@@ -8,7 +8,7 @@
 #include<stdlib.h>
 
 /* Constantes */
-#define NVisitantes 100000
+#define NVisitantes 10000
 
 /*
   Problema introductorio a exclusión mutua.

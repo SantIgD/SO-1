@@ -11,10 +11,14 @@ Ejercicios:
 
 + Por cada molinete entran `NVisitantes` personas, pero al
 ejecutar el programa verán que el resultado no es `2*NVisitantes`.
-¿Por qué?.
+¿Por qué? Porque el incremento de la variable contador no es una operación atómica, lo cual produce que no se cumple la propiedad de mutex.
+
 + Ejecute el programa 5 veces con `NVisitantes` igual a 10. ¿El programa dio el
-  resultado correcto siempre? Si esto es así, ¿por qué?
+  resultado correcto siempre? Si esto es así, ¿por qué? Sí, dió correcto, no tengo ni idea por qué.
+
 + ¿Cuál es el mínimo valor que podría imprimir el programa? Simular dicha
-  situación.
-+ Implementar la solución vista en la clase de teoría (Algoritmo de Peterson). 
-+ Implemente una solución utilizando un *pthread_mutex*.
+  situación. El mínimo valor que podría imprimir es `NVisitantes`. El caso se daría cuando ambos hilos ingresan a la sección crítica al mismo tiempo en todas las iteraciones, es decir ambos leen el mismo valor, incrementan en 1 y guardan el mismo valor incrementado en 1.
+
+
++ Implementar la solución vista en la clase de teoría (Algoritmo de Peterson). [Listo]
++ Implemente una solución utilizando un *pthread_mutex*. [Listo]
