@@ -55,8 +55,6 @@ void *filosofo(void *arg)
   while(1)
   {
 
-    //pthread_mutex_lock(&izquierda);
-    //izquierda++;
     if(i%2==0){
       tomar_tenedores_d(i);
       
@@ -83,8 +81,7 @@ int main()
   for (i=0;i<N_FILOSOFOS;i++)
     pthread_mutex_init(&tenedor[i], NULL);
   
-  //pthread_mutex_init(&fuiYo, NULL);
-  //pthread_mutex_init(&izquierda, NULL);
+  
   int args[5];
   for (i=0;i<N_FILOSOFOS;i++){
     args[i]=i;
