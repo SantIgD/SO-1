@@ -1,13 +1,13 @@
-
+#include <pthread.h> /* PThread */
 #include <stdio.h> /* Printf */
 #include <stdlib.h>
 #include <assert.h>
-#include "filtro.h"
+#include "filtro_salas.h"
 
 #define NOPATOVA -1
+#define MOLS 10
 
 struct filtro {
-    pthread_mutex_t candado;
     int * salas;
     int * patovas;
 };
@@ -17,8 +17,6 @@ filtro_t* filtro(unsigned int n){
 
     filtro_t* filtro = malloc(sizeof(filtro_t));
 
-    pthread_mutex_init(&filtro->candado,NULL);
-    //filtro->candado=PTHREAD_MUTEX_INITIALIZER;
     filtro->salas=malloc(sizeof(int) * n);
     filtro->patovas=malloc(sizeof(int) * (n-1));
 
@@ -36,14 +34,38 @@ filtro_t* filtro(unsigned int n){
 
 /* El hilo _id_ está intentando tomar el lock */
 void filtro_lock(filtro_t* filtro, int id){
+    int salaPretendida=filtro->salas[id];
+    if (filtro->patovas[salaPretendida] == NOPATOVA){
 
-    pthread_mutex_lock(&filtro->candado);
+        if(salaPretendida != 0)
+            filtro->patovas[salaPretendida-1] = NOPATOVA;
+        filtro->patovas[salaPretendida] = id;
+    }
+    while(filtro->patovas[salaPretendida]!= NOPATOVA && filtro->patovas[salaPretendida] != id){
+    }
+
 }
 
 /* El hilo _id_ libera el lock */
 void filtro_unlock(filtro_t* filtro, int id){
 
-    pthread_mutex_unlock(&filtro->candado);
+    if(filtro->salas[id] == MOLS-1){ // ya ejecute
+
+        filtro->salas[id] = 0;
+        filtro->patovas[MOLS-2] = NOPATOVA; // Libero la utima sala
+        
+    }else{
+
+        int estoyEnSala = filtro->salas[id]; // avance a la que pretendia
+        filtro->salas[id] += 1; // pretendo avanzar a la siguiente
+            
+    }
+
+    
+    
+    
+    
+    
 }
 
 void filtro_delete(filtro_t* filtro){

@@ -58,3 +58,5 @@ void filtro_unlock(filtro_t filtro, int id);
 
       patovaSala[sala] -> hilo
 
+      
+

@@ -2,34 +2,40 @@
 #include <stdio.h> /* Printf */
 #include <stdlib.h>
 #include <assert.h>
-#include "filtro.h"
+#include "filtro_salas.h"
 
-#define MOLS 10
-#define VISITANTES 1000000
+#define MOLS 3
+#define VISITANTES 100
 
 
-/*creamos el f*/
-filtro_t* f ;
+/*creamos el filter*/
+filtro_t* filter ;
 
 
 /* Cantidad de visitantes en el Jardín */
 long int visitantes;
 
-void *molinete(void *arg){
+void* molinete(void *arg){
 
-  long int id = (long int) arg;
+  long int id = *(long int*) arg;
 
-  printf("Molinete %ld activo\n", id);
+  printf("Molinete %ld activo\n",id);
 
   for(int i = 0; i < VISITANTES; i++){
     { /* tomar_mutex */
-      filtro_lock(f,id);
+      filtro_lock(filter,id);
     }
 	  //BEGIN: región crítica
-    visitantes ++;
+    //if(filter->salas[id] == MOLS-2){ // acceder a seccion critica
+        visitantes ++;
+        printf("aca hilo [%ld]\n",id);
+    //}else{
+    //   i--;
+    //}
+        
 	  //END: región crítica
     { /* soltar_mutex */
-      filtro_unlock(f,id);
+      filtro_unlock(filter,id);
     }
   }
 
@@ -44,36 +50,30 @@ int main(){
   /* Abrimos el Jardín */
   visitantes = 0;
 
-  /* Habilitamos los molinetes */
-  /*
-  assert(!pthread_create( &mols[0]
-                          , NULL
-                          , molinete
-                          , (void*) 0));
+  filter = filtro(MOLS);
 
-  assert(!pthread_create( &mols[1]
-                          , NULL
-                          , molinete
-                          , (void*) 1));
-*/
-
-  f = filtro(MOLS);
   int i=0;
-  for(;i<MOLS;i++)
+  long int idth[MOLS];
+
+  /* Habilitamos los molinetes */
+  for(;i<MOLS;i++){
+    idth[i]=i;
      assert(!pthread_create( &mols[i]
                           , NULL
                           , molinete
-                          , (void*) &i));
-
+                          , (void*) &idth[i]));
+  }
 
   /* Pasan personas */
 
   /* Se cierra el jardín */
-  for(i=0;i<MOLS;i++)
-    assert(! pthread_join(mols[i], NULL));
+  int j=0;
+  for(;j<MOLS;j++)
+    assert(! pthread_join(mols[j], NULL));
     
 
   printf("Visitantes que pasaron en el día %ld =?= %d\n", visitantes, MOLS * VISITANTES);
+  filtro_delete(filter);
 
   return EXIT_SUCCESS;
 }

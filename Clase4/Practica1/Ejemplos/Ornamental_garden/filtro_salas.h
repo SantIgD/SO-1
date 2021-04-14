@@ -1,5 +1,5 @@
-#ifndef __FILTRO_H__
-#define __FILTRO_H__
+#ifndef __FILTRO_SALAS_H__
+#define __FILTRO_SALAS_H__
 
 
 struct filtro;
