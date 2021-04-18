@@ -1,0 +1,182 @@
+#include "Board.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/******************************************************************************/
+/* Definición de la estructura de datos del tablero */
+
+struct _board{
+
+    int** tableroActual;
+    int** tableroProxGen;
+    int cantColumnas;
+    int cantFilas;
+};
+
+/******************************************************************************/
+/******************************************************************************/
+
+/* Funciones sobre el tablero */
+
+/* Creación del tablero */
+board_t* board_create(){
+    return malloc(sizeof(board_t));
+}
+
+int board_cells_create(board_t* board,int row,int col){
+
+    board->cantColumnas=col;
+    board->cantFilas=row;
+    
+    printf("Col:%d Fil:%d", board->cantColumnas,board->cantFilas);
+    getchar();
+    board->tableroActual = malloc(sizeof(int*) * board->cantFilas );
+    board->tableroProxGen = malloc(sizeof(int*) * board->cantFilas );
+
+    for (int i = 0; i < board->cantFilas; i++){
+        board->tableroActual[i] = malloc(sizeof(int) * board->cantColumnas );
+        board->tableroProxGen[i] = malloc(sizeof(int) * board->cantColumnas );
+    }
+
+
+    return 0;
+}
+
+
+int get_state(char val){
+
+    int estado=0;
+
+    if (val=='X'){
+        estado = 1;
+
+    }
+    
+    return estado;
+}
+
+
+/* Asignarle cant veces 'val' de manera consecutiva a la posición (col, row), (col+1, row),..., (row,col+cant) del tablero*/
+board_t* board_set(board_t* board,int row,int col,int cant,char val){
+
+    int estado = get_state(val);
+
+    for(int j = 0; j < cant;j++){
+        
+        board->tableroActual[row][col+j]=estado;
+    }
+   
+
+    printf("Salgo de set\n");
+    getchar();
+
+    return board;
+}
+
+
+/* Leer de una lista de caracteres que codifican un tablero en formato RLE e
+ * interpretarla como una fila del tablero */
+int board_load(board_t *board, char *str,int row){
+    
+    int columna=0 , valor;
+
+    for(int i = 0; str[i+1] != '\0';i=i+2){
+
+        printf("str[%d]%c\n",i,str[i+1]);
+        valor = atoi((const char* ) &str[i]);
+        board_set(board,row,columna,valor,str[i+1]);
+        getchar();
+        printf("%d,%d\n", valor,columna);
+        
+
+        columna += valor;
+
+    }
+
+    
+
+    //if (columna != board->cantColumnas)
+       // perror("No se ingreso el numero de columnas correctas ");
+
+    return 0;
+}
+
+/* Inicialización del tablero */
+int board_init(board_t *board,char* filename){
+    int cantidadLetras = (board->cantColumnas)*2+2;
+    char* linea=malloc(sizeof(char) * cantidadLetras);
+    int fila=0;
+
+    FILE* archivo = fopen(filename,"r");
+
+    
+    if(archivo == NULL){
+        perror("No se pudo abrir el archivo! ");
+    }
+
+    fgets(linea,cantidadLetras,archivo);
+
+    while(!feof(archivo)){
+        fgets(linea,cantidadLetras,archivo);
+        printf("fila:%s",linea);
+
+        getchar();
+        board_load(board,linea,fila);\
+          printf("tablero_%d: %d\n",fila,board->tableroActual[fila][0]);
+        printf("tablero_%d: %d\n",fila,board->tableroActual[fila][1]);
+        printf("tablero_%d: %d\n",fila,board->tableroActual[fila][2]);
+        fila++;
+
+
+    }
+    
+    
+    //if (fila != board->cantFilas)
+      //  perror("No se ingreso el numero de filas correctas ");
+
+    fclose(archivo);
+    return 0;
+}
+
+/* Creación del tablero con un elemento por default*/
+//int board_init_def(board_t *board, size_t col, size_t row, char def);
+
+/* Leer el tablero en una posición (col, row) */
+//char board_get(board_t board, unsigned int col, unsigned int row);
+
+/* Leer el tablero en una posición asumiendo que el tablero es 'redondo'.*/
+//char board_get_round(board_t board, int col, int row);
+
+
+/* Función para mostrar el tablero */
+/* La función 'board_show' imprime el board.*/
+void board_show(board_t* board){
+
+    for(int i =0; i < board->cantFilas; i++){
+
+        printf("fila %d: ",i);
+
+        for(int j = 0; j < board->cantColumnas; j++){
+
+            printf("%d",board->tableroActual[i][j] );
+            /*
+            if(board->tableroActual[i][j] == 0){
+                printf("|O");
+            }    
+            else{
+                printf("|X");
+            }
+            */
+
+        }
+
+        printf("|\n");
+
+    }
+
+}
+
+/* Destroy board */
+//void board_destroy(board_t *board);
+
