@@ -3,9 +3,6 @@
 
 
 
-
-
-
 int main(int argc, char** argv){
 
     if (argc > 1){
@@ -14,6 +11,11 @@ int main(int argc, char** argv){
         
         game_init(juego,argv[1]);
         game_show(juego);
+
+        congwayGoL(juego,get_nprocs());
+
+        game_writeBoard(juego,"archivoDeSalida.txt");
+        game_destroy(juego);
     }
     return 0;
 }

@@ -22,12 +22,14 @@ int game_init(game_t* game, char* filename);
 int game_load(game_t* game, char *filename);
 
 /* Guardamos el tablero 'board' en el archivo 'filename' */
-void game_writeBoard(board_t board, const char *filename);
+void game_writeBoard(game_t* game, char *filename);
 
 /* Simulamos el Juego de la Vida de Conway con tablero 'board' la cantidad de
 ciclos indicados en 'cycles' en 'nuprocs' unidades de procesamiento*/
-board_t *congwayGoL(board_t *board, unsigned int cycles, const int nuproc);
+int congwayGoL(game_t *game , const int nuproc);
 
 void game_show(game_t* game);
+
+void game_destroy(game_t* game);
 
 #endif

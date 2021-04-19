@@ -3,6 +3,7 @@
 #include "Barreras.h"
 #include <stdio.h>
 
+
 /******************************************************************************/
 /* Representamos las células vivas como 'O' y las muertas como 'X' */
 /******************************************************************************/
@@ -56,13 +57,29 @@ int game_load(game_t* game, char *filename){
 }
 
 /* Guardamos el tablero 'board' en el archivo 'filename' */
-void game_writeBoard(board_t board, const char *filename);
+void game_writeBoard(game_t* game,char *filename){
+
+    board_write(game->board,filename);
+
+}
 
 /* Simulamos el Juego de la Vida de Conway con tablero 'board' la cantidad de
 ciclos indicados en 'cycles' en 'nuprocs' unidades de procesamiento*/
-board_t *congwayGoL(board_t *board, unsigned int cycles, const int nuproc);
+int congwayGoL(game_t *game, const int nuproc){
+
+    printf("cantidad de hilos [%d]",nuproc);
+    
+
+
+}
  
 
 void game_show(game_t* game){
     board_show(game->board);
+}
+
+void game_destroy(game_t* game){
+
+    board_destroy(game->board);
+    free(game);
 }

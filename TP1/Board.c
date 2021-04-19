@@ -26,11 +26,11 @@ board_t* board_create(){
 
 int board_cells_create(board_t* board,int row,int col){
 
-    board->cantColumnas=col;
-    board->cantFilas=row;
+    board->cantColumnas = col;
+    board->cantFilas = row;
     
-    printf("Col:%d Fil:%d", board->cantColumnas,board->cantFilas);
-    getchar();
+    //printf("Col:%d Fil:%d", board->cantColumnas,board->cantFilas);
+    //getchar();
     board->tableroActual = malloc(sizeof(int*) * board->cantFilas );
     board->tableroProxGen = malloc(sizeof(int*) * board->cantFilas );
 
@@ -46,7 +46,7 @@ int board_cells_create(board_t* board,int row,int col){
 
 int get_state(char val){
 
-    int estado=0;
+    int estado = 0;
 
     if (val=='X'){
         estado = 1;
@@ -58,20 +58,20 @@ int get_state(char val){
 
 
 /* Asignarle cant veces 'val' de manera consecutiva a la posición (col, row), (col+1, row),..., (row,col+cant) del tablero*/
-board_t* board_set(board_t* board,int row,int col,int cant,char val){
+int board_set(board_t* board,int row,int col,int cant,char val){
 
     int estado = get_state(val);
 
-    for(int j = 0; j < cant;j++){
+    for(int j = 0; j < cant; j++){
         
         board->tableroActual[row][col+j]=estado;
     }
    
 
-    printf("Salgo de set\n");
-    getchar();
+    //printf("Salgo de set\n");
+    //getchar();
 
-    return board;
+    return 0;
 }
 
 
@@ -83,11 +83,11 @@ int board_load(board_t *board, char *str,int row){
 
     for(int i = 0; str[i+1] != '\0';i=i+2){
 
-        printf("str[%d]%c\n",i,str[i+1]);
+        //printf("str[%d]%c\n",i,str[i+1]);
         valor = atoi((const char* ) &str[i]);
         board_set(board,row,columna,valor,str[i+1]);
-        getchar();
-        printf("%d,%d\n", valor,columna);
+        //getchar();
+        //printf("%d,%d\n", valor,columna);
         
 
         columna += valor;
@@ -96,15 +96,19 @@ int board_load(board_t *board, char *str,int row){
 
     
 
-    //if (columna != board->cantColumnas)
-       // perror("No se ingreso el numero de columnas correctas ");
+    if (columna != board->cantColumnas){
+
+        perror("No se ingreso el numero de columnas correctas ");
+        exit(EXIT_FAILURE);
+    }
 
     return 0;
 }
 
 /* Inicialización del tablero */
 int board_init(board_t *board,char* filename){
-    int cantidadLetras = (board->cantColumnas)*2+2;
+    
+    int cantidadLetras = (board->cantColumnas)*2+2; // los pares NX y el final de linea \n\0
     char* linea=malloc(sizeof(char) * cantidadLetras);
     int fila=0;
 
@@ -119,21 +123,25 @@ int board_init(board_t *board,char* filename){
 
     while(!feof(archivo)){
         fgets(linea,cantidadLetras,archivo);
-        printf("fila:%s",linea);
+        //printf("fila:%s",linea);
 
-        getchar();
-        board_load(board,linea,fila);\
-          printf("tablero_%d: %d\n",fila,board->tableroActual[fila][0]);
-        printf("tablero_%d: %d\n",fila,board->tableroActual[fila][1]);
-        printf("tablero_%d: %d\n",fila,board->tableroActual[fila][2]);
+        //getchar();
+        board_load(board,linea,fila);
+        //printf("tablero_%d: %d\n",fila,board->tableroActual[fila][0]);
+        //printf("tablero_%d: %d\n",fila,board->tableroActual[fila][1]);
+        //printf("tablero_%d: %d\n",fila,board->tableroActual[fila][2]);
         fila++;
 
 
     }
     
     
-    //if (fila != board->cantFilas)
-      //  perror("No se ingreso el numero de filas correctas ");
+    if (fila != board->cantFilas){
+
+        perror("No se ingreso el numero de filas correctas ");
+        exit(EXIT_FAILURE);
+    }
+        
 
     fclose(archivo);
     return 0;
@@ -143,7 +151,9 @@ int board_init(board_t *board,char* filename){
 //int board_init_def(board_t *board, size_t col, size_t row, char def);
 
 /* Leer el tablero en una posición (col, row) */
-//char board_get(board_t board, unsigned int col, unsigned int row);
+int board_get(board_t* board, unsigned int row, unsigned int col){
+    return board->tableroActual[row][col];
+}
 
 /* Leer el tablero en una posición asumiendo que el tablero es 'redondo'.*/
 //char board_get_round(board_t board, int col, int row);
@@ -155,28 +165,60 @@ void board_show(board_t* board){
 
     for(int i =0; i < board->cantFilas; i++){
 
-        printf("fila %d: ",i);
 
         for(int j = 0; j < board->cantColumnas; j++){
 
-            printf("%d",board->tableroActual[i][j] );
-            /*
-            if(board->tableroActual[i][j] == 0){
+            //printf("%d",board->tableroActual[i][j] );
+            
+            if(board_get(board,i,j) == 0){
                 printf("|O");
             }    
             else{
                 printf("|X");
             }
-            */
+            
 
         }
-
-        printf("|\n");
+        if (i<board->cantFilas)
+            printf("|\n");
 
     }
 
 }
 
+void board_write(board_t* board, char* filename){
+
+    FILE* archivo = fopen(filename,"w");
+
+    for(int i = 0; i < board->cantFilas; i++){
+        
+        for(int j = 0; j < board->cantColumnas; j++){
+            
+            if(board_get(board,i,j) == 1)
+                fputc('X', archivo);
+            else
+                fputc('O', archivo);
+
+        }
+            
+        fputc('\n', archivo);
+    }
+    fclose(archivo);
+
+}
+
 /* Destroy board */
-//void board_destroy(board_t *board);
+void board_destroy(board_t *board){
+
+    
+
+    for (int i = 0; i < board->cantFilas; i++){
+        free(board->tableroActual[i]);
+        free(board->tableroProxGen[i]);
+    }
+    free(board->tableroActual);
+    free(board->tableroProxGen);
+
+    free(board);
+}
 
