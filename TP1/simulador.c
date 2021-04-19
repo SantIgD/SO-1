@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "Game.h"
+#include <sys/sysinfo.h>
 
 
 

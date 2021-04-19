@@ -46,8 +46,16 @@ char board_get_round(board_t board, int col, int row);
 /* La función 'board_show' imprime el board.*/
 void board_show(board_t* board);
 
+int board_getCantFilas(board_t * board);
+
+
+int board_getCantColumnas(board_t * board);
+
 /* Escribe el tablero en un archivo de salida.*/
 void board_write(board_t* board, char* filename);
+
+/* Intercambia el tablero actual por la proxima generacion*/
+void board_interchange(board_t* board);
 
 /* Destroy board */
 void board_destroy(board_t *board);

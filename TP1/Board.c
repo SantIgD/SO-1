@@ -165,6 +165,7 @@ void board_show(board_t* board){
 
     for(int i =0; i < board->cantFilas; i++){
 
+        printf("   ");
 
         for(int j = 0; j < board->cantColumnas; j++){
 
@@ -177,13 +178,29 @@ void board_show(board_t* board){
                 printf("|X");
             }
             
-
         }
         if (i<board->cantFilas)
             printf("|\n");
 
     }
 
+}
+
+void board_interchange(board_t* board){
+    
+    int** aux = board->tableroProxGen;
+    board->tableroProxGen = board->tableroActual;
+    board->tableroActual = aux;
+
+}
+
+int board_getCantFilas(board_t * board){
+    return board->cantFilas;
+}
+
+
+int board_getCantColumnas(board_t * board){
+    return board->cantColumnas;
 }
 
 void board_write(board_t* board, char* filename){

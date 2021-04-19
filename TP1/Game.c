@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include "Barreras.h"
 #include <stdio.h>
+#include <assert.h>
 
 
 /******************************************************************************/
@@ -14,7 +15,10 @@ struct _game{
 
 };
 
-pthread_mutex_t candado;
+barrier_t* barrera;
+pthread_mutex_t lock;
+int actualizando = 1,terminoCiclo = 0;
+int indiceFila=0,indiceColumna=0;
 
 /******************************************************************************/
  
@@ -63,19 +67,129 @@ void game_writeBoard(game_t* game,char *filename){
 
 }
 
+int game_getCantFilas(game_t* game){
+
+    return board_getCantFilas(game->board);
+}
+
+int game_getCantColumnas(game_t* game){
+
+    return board_getCantColumnas(game->board);
+}
+
+void osiris(game_t* game){
+    
+    indiceColumna++;
+    if(indiceColumna == game_getCantColumnas(game)){
+        indiceColumna = 0;
+        indiceFila++;
+    }
+}
+
+void* criterio_divino(void* arg){
+
+    game_t* game = (game_t*) arg;
+
+    int indiceFilaHilo ,indiceColumnaHilo;
+    for(int i=0; i < game->ciclos; i++){
+
+        while(!terminoCiclo){
+
+            pthread_mutex_lock(&lock);
+
+            if (!terminoCiclo){
+                osiris(game);
+            
+
+                indiceFilaHilo = indiceFila;
+                indiceColumnaHilo = indiceColumna;
+
+                if (indiceFilaHilo == game_getCantFilas(game)-1
+                &&  indiceColumnaHilo == game_getCantColumnas(game)-1){
+                    terminoCiclo = 1;
+                    actualizando = 1;
+                }
+            }
+
+            pthread_mutex_unlock(&lock);
+
+            
+            if (!terminoCiclo || 
+            indiceFilaHilo == game_getCantFilas(game)-1
+            &&  indiceColumnaHilo == game_getCantColumnas(game)-1){
+                pri
+                ntf("Coordenadas en el tablero (%d,%d)\n ",indiceFilaHilo,indiceColumnaHilo);
+                //aplicar_juicio(indiceFilaHilo,indiceColumnaHilo);
+            }
+            
+
+        }
+
+        
+
+            //barrier
+            barrier_wait(barrera);
+          
+
+            //---> actualizamos
+            pthread_mutex_lock(&lock);
+            if(actualizando == 1){
+
+                board_interchange(game->board);
+                game_show(game);
+                terminoCiclo  = 0;
+                indiceFila    = 0;
+                indiceColumna = 0;
+                actualizando  = 0;
+            }
+            pthread_mutex_unlock(&lock);
+                
+            //barrier
+            barrier_wait(barrera);
+        
+        //printf("vamos por la iteracion: %d\n", i );
+
+    }
+
+    
+
+    pthread_exit(EXIT_SUCCESS);
+}
+
 /* Simulamos el Juego de la Vida de Conway con tablero 'board' la cantidad de
 ciclos indicados en 'cycles' en 'nuprocs' unidades de procesamiento*/
 int congwayGoL(game_t *game, const int nuproc){
 
-    printf("cantidad de hilos [%d]",nuproc);
+    pthread_t dios[nuproc];
+    pthread_mutex_init(&lock,NULL);
+    barrera = barrier_create();
+    barrier_init(barrera,nuproc);
     
 
+
+        //crear hilos
+    for(int i=0; i < nuproc; i++){
+
+        /* Habilitamos a los dioses */
+        assert(!pthread_create( &dios[i]
+                                , NULL
+                                , criterio_divino
+                                , (void*) game));
+    
+    }    
+        
+    //cerrarlos
+    for(int i=0; i < nuproc; i++)
+        assert(! pthread_join(dios[i], NULL));
 
 }
  
 
 void game_show(game_t* game){
+
+    printf("\n------------------\n  Tablero actual \n------------------\n\n");
     board_show(game->board);
+    printf("\n");
 }
 
 void game_destroy(game_t* game){
