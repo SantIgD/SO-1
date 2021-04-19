@@ -77,13 +77,160 @@ int game_getCantColumnas(game_t* game){
     return board_getCantColumnas(game->board);
 }
 
-void osiris(game_t* game){
+void avanzar_celula(game_t* game){
     
     indiceColumna++;
     if(indiceColumna == game_getCantColumnas(game)){
         indiceColumna = 0;
         indiceFila++;
     }
+}
+
+int vecino_superior(game_t *game,int row,int col){
+
+    if ( row == 0 ){
+
+        row = game_getCantFilas(game);
+
+    }
+
+    int filaAnterior = (row-1) % game_getCantFilas(game);
+    
+    return board_get(game->board,filaAnterior,col);
+}
+
+int  vecino_superior_i(game_t *game,int row,int col){
+
+    if ( row == 0 ){
+
+        row = game_getCantFilas(game);
+
+    }
+
+    int filaAnterior    = (row - 1) % game_getCantFilas(game);
+
+    if ( col == 0 ){
+
+        col = game_getCantColumnas(game);
+
+    }
+    int columnaAnterior = (col - 1) % game_getCantColumnas(game);
+    
+    return board_get(game->board,filaAnterior,columnaAnterior);
+}
+
+int vecino_superior_d(game_t *game,int row,int col){
+
+    if ( row == 0 ){
+
+        row = game_getCantFilas(game);
+
+    }
+
+    int filaAnterior     = (row - 1) % game_getCantFilas(game);
+    int columnaPosterior = (col + 1) % game_getCantColumnas(game);
+    
+    return board_get(game->board,filaAnterior,columnaPosterior);
+}
+
+int  vecino_inferior(game_t *game,int row,int col){
+
+    int filaPosterior = (row + 1) % game_getCantFilas(game);
+   
+    return board_get(game->board,filaPosterior,col);
+}
+
+int  vecino_inferior_i(game_t *game,int row,int col){
+
+    int filaPosterior     = (row + 1) % game_getCantFilas(game);
+
+    if ( col == 0 ){
+
+        col = game_getCantColumnas(game);
+
+    }
+    
+    int columnaAnterior   = (col - 1) % game_getCantColumnas(game);
+    
+    return board_get(game->board,filaPosterior,columnaAnterior);
+}
+
+int vecino_inferior_d(game_t *game,int row,int col){
+
+    int filaPosterior     = (row + 1) % game_getCantFilas(game);
+    int columnaPosterior  = (col + 1) % game_getCantColumnas(game);
+    
+    return board_get(game->board,filaPosterior,columnaPosterior);
+}
+
+int vecino_lateral_i(game_t *game,int row,int col){
+    
+    if ( col == 0 ){
+
+        col = game_getCantColumnas(game);
+
+    }
+    int columnaAnterior  = (col - 1) % game_getCantColumnas(game);
+    
+    return board_get(game->board,row,columnaAnterior);
+}
+
+int vecino_lateral_d(game_t *game,int row,int col){
+
+    int columnaPosterior  = (col + 1) % game_getCantColumnas(game);
+    
+    return board_get(game->board,row,columnaPosterior);
+}
+
+
+void game_set_value(game_t* game, int row, int col, int value){
+    board_proxGen_set(game->board,row,col,value);
+}
+
+int mandato_vive(int vecinosVivos,int estadoActual){
+
+    int resp = DEAD;
+
+    if ((estadoActual == ALIVE && (vecinosVivos == 2 || vecinosVivos ==3))
+                            || 
+        (estadoActual == DEAD && vecinosVivos == 3)){
+            resp = ALIVE;
+        }
+    return resp;
+
+}
+
+void juicio_divino(game_t* game,int row, int col){
+
+    int sociedadViva = 8;
+
+    sociedadViva -= vecino_superior(game,row,col);
+    sociedadViva -= vecino_superior_i(game,row,col);   
+    sociedadViva -= vecino_superior_d(game,row,col);
+
+    sociedadViva -= vecino_inferior(game,row,col);
+    sociedadViva -= vecino_inferior_i(game,row,col);
+    sociedadViva -= vecino_inferior_d(game,row,col);
+
+    sociedadViva -= vecino_lateral_i(game,row,col);
+    sociedadViva -= vecino_lateral_d(game,row,col);
+
+    int estadoActual = board_get(game->board,row,col);
+
+    
+    
+    if (mandato_vive(sociedadViva,estadoActual) == ALIVE){
+
+        //printf("[VIVE] (%d,%d) Estado actual = %d, vivos = %d\n",row,col,estadoActual,sociedadViva);    
+        board_proxGen_set(game->board,row,col,ALIVE);
+
+    }else{
+
+        //printf("[MUERE] (%d,%d) Estado actual = %d, vivos = %d\n",row,col,estadoActual,sociedadViva);
+        board_proxGen_set(game->board,row,col,DEAD);
+    }
+
+
 }
 
 void* criterio_divino(void* arg){
@@ -98,11 +245,11 @@ void* criterio_divino(void* arg){
             pthread_mutex_lock(&lock);
 
             if (!terminoCiclo){
-                osiris(game);
-            
-
+                
                 indiceFilaHilo = indiceFila;
                 indiceColumnaHilo = indiceColumna;
+
+                avanzar_celula(game);
 
                 if (indiceFilaHilo == game_getCantFilas(game)-1
                 &&  indiceColumnaHilo == game_getCantColumnas(game)-1){
@@ -114,12 +261,11 @@ void* criterio_divino(void* arg){
             pthread_mutex_unlock(&lock);
 
             
-            if (!terminoCiclo || 
-            indiceFilaHilo == game_getCantFilas(game)-1
-            &&  indiceColumnaHilo == game_getCantColumnas(game)-1){
-                pri
-                ntf("Coordenadas en el tablero (%d,%d)\n ",indiceFilaHilo,indiceColumnaHilo);
-                //aplicar_juicio(indiceFilaHilo,indiceColumnaHilo);
+            if (!terminoCiclo 
+               || (indiceFilaHilo == game_getCantFilas(game)-1
+               &&  indiceColumnaHilo == game_getCantColumnas(game)-1)){
+                //printf("Coordenadas en el tablero (%d,%d)\n ",indiceFilaHilo,indiceColumnaHilo);
+                juicio_divino(game,indiceFilaHilo,indiceColumnaHilo);
             }
             
 

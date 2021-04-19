@@ -23,7 +23,10 @@ int board_cells_create(board_t* board,int row,int col);
 int get_state(char val);
 
 /* Asignarle cant veces 'val' de manera consecutiva a la posición (col, row), (col+1, row),..., (row,col+cant) del tablero*/
-int board_set(board_t* board,int row,int col,int cant,char val);
+int board_actual_set(board_t* board,int row,int col,int cant,char val);
+
+/* Asigna el valor valor a la matriz proxGen*/
+int board_proxGen_set(board_t* board,int row,int col,int valor);
 
 /* Leer de una lista de caracteres que codifican un tablero en formato RLE e
  * interpretarla como una fila del tablero */

@@ -58,7 +58,7 @@ int get_state(char val){
 
 
 /* Asignarle cant veces 'val' de manera consecutiva a la posición (col, row), (col+1, row),..., (row,col+cant) del tablero*/
-int board_set(board_t* board,int row,int col,int cant,char val){
+int board_actual_set(board_t* board,int row,int col,int cant,char val){
 
     int estado = get_state(val);
 
@@ -75,27 +75,41 @@ int board_set(board_t* board,int row,int col,int cant,char val){
 }
 
 
+int board_proxGen_set(board_t* board,int row,int col,int valor){
+
+
+    board->tableroProxGen[row][col]=valor;   
+
+    //printf("Salgo de set\n");
+    //getchar();
+
+    return 0;
+}
+
 /* Leer de una lista de caracteres que codifican un tablero en formato RLE e
  * interpretarla como una fila del tablero */
 int board_load(board_t *board, char *str,int row){
     
-    int columna=0 , valor;
+    int columna=0 , cantidad=0;
+    printf("[string] %s\n",str);
+    for(int i = 0; columna < board->cantColumnas; i=i+2){
 
-    for(int i = 0; str[i+1] != '\0';i=i+2){
-
-        //printf("str[%d]%c\n",i,str[i+1]);
-        valor = atoi((const char* ) &str[i]);
-        board_set(board,row,columna,valor,str[i+1]);
+        cantidad=0;
+        if(str[i] != '\n' && str[i] != '\0' && str[i] != ' '){
+            cantidad = atoi((const char* ) &str[i]);
+            printf("[cantidad] %d, [Char] %c, [Siguiente] %c  \n ",cantidad,str[i],str[i+1]);
+        }
+        board_actual_set(board,row,columna,cantidad,str[i+1]);
         //getchar();
         //printf("%d,%d\n", valor,columna);
         
 
-        columna += valor;
+        columna += cantidad;
 
     }
 
     
-
+    printf("cantidad de columnas: %d /cantidad de columnas-tablero: %d //cantidad de fila: %d\n\n",columna, board->cantColumnas,row);
     if (columna != board->cantColumnas){
 
         perror("No se ingreso el numero de columnas correctas ");
@@ -122,14 +136,13 @@ int board_init(board_t *board,char* filename){
     fgets(linea,cantidadLetras,archivo);
 
     while(!feof(archivo)){
+
         fgets(linea,cantidadLetras,archivo);
         //printf("fila:%s",linea);
 
         //getchar();
         board_load(board,linea,fila);
-        //printf("tablero_%d: %d\n",fila,board->tableroActual[fila][0]);
-        //printf("tablero_%d: %d\n",fila,board->tableroActual[fila][1]);
-        //printf("tablero_%d: %d\n",fila,board->tableroActual[fila][2]);
+
         fila++;
 
 
