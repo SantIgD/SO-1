@@ -92,13 +92,12 @@ int board_load(board_t *board, char *str,int row){
     
     int columna=0 , cantidad=0;
     printf("[string] %s\n",str);
-    for(int i = 0; columna < board->cantColumnas; i=i+2){
+    int longitud = strlen(str);
+     printf("[longitud] %d\n",longitud);
+    for(int i = 0; i < longitud; i=i+2){
 
-        cantidad=0;
-        if(str[i] != '\n' && str[i] != '\0' && str[i] != ' '){
-            cantidad = atoi((const char* ) &str[i]);
-            printf("[cantidad] %d, [Char] %c, [Siguiente] %c  \n ",cantidad,str[i],str[i+1]);
-        }
+        cantidad = atoi((const char* ) &str[i]);
+       // printf("[cantidad] %d, [Char] %c, [Siguiente] %c  \n ",cantidad,str[i],str[i+1]);
         board_actual_set(board,row,columna,cantidad,str[i+1]);
         //getchar();
         //printf("%d,%d\n", valor,columna);
