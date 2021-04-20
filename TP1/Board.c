@@ -52,7 +52,6 @@ int board_load(board_t *board, char *str,int row){
 
     }
 
-    
     if (columna != board->cantColumnas){
 
         perror("No se ingreso el numero de columnas correctas ");
@@ -67,28 +66,36 @@ int board_init(board_t *board,char* filename){
     int cantidadLetras = (board->cantColumnas)*2+2; // los pares NX y el final de linea \n\0
     char* linea=malloc(sizeof(char) * cantidadLetras);
     int fila=0;
+    char finalLinea;
 
     FILE* archivo = fopen(filename,"r");
 
     
     if(archivo == NULL){
         perror("No se pudo abrir el archivo! ");
+        exit(EXIT_FAILURE);
     }
 
-    fgets(linea,cantidadLetras,archivo);
+    // perdemos la primera linea, que ya la leimos (con 7 caracteres leidos nos alcanza para que lea el \n de fin de linea)   
+    fgets(linea,7,archivo);
 
-    while(!feof(archivo)){
+    fgets(linea,cantidadLetras,archivo); // Linea 0 de la matriz
 
-        fgets(linea,cantidadLetras,archivo);
-        board_load(board,linea,fila);
+    while(!feof(archivo)){ 
+        
+        if (fila < board->cantFilas){
+            board_load(board,linea,fila);
+        }
         
         fila++;
+        fgets(linea,cantidadLetras,archivo); 
     }
+
     
     
     if (fila != board->cantFilas){
 
-        perror("No se ingreso el numero de filas correctas ");
+        perror("La semilla ingresada es incorrecta por cantidad de filas");
         exit(EXIT_FAILURE);
     }
         

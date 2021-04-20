@@ -1,6 +1,6 @@
 #Este es el Makefile para 
 #compilar el programa simulador.c corectamente
-simulador: Board.o Game.o 
+simulador: Board.o Barreras.o Game.o 
 	gcc -o simulador simulador.c Game.o Board.o Barreras.o -lpthread
 
 Board.o: Board.c Board.h

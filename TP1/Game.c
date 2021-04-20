@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include "Barreras.h"
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 
 
@@ -26,17 +27,127 @@ int indiceFila=0,indiceColumna=0;
 
 /* Funciones internas */
 
+/* Chequea que los ciclos, filas y columnas sean correctos */
+void first_line_checker(game_t * game,int filas,int columnas);
+
+/* Condicional que establece cuando una celula vive/muere/se mantiene muerta/revive */
 int mandato_vive(int vecinosVivos,int estadoActual);
+
+/* Avanza los indices del tablero para que eventualmente se otorguen las tareas a los dioses*/
 void avanzar_celula(game_t* game);
+
+
 void juicio_divino(game_t* game,int row, int col);
+
 void reinicializar_globales();
+
+
 void actualizar_tablero(game_t* game);
+
+
 int get_vecinos_vivos(game_t* game,int row, int col);
+
+
 void juicio_divino(game_t* game,int row, int col);
+
+
 void aplicar_juicio(game_t* game, int row, int col, int sociedadViva);
 
 
 /******************************************************************************/
+
+/* Creacion, inicializacion y destruccion del juego*/
+
+game_t * game_create(){
+    
+    return malloc(sizeof(game_t));
+  
+}
+
+int game_init(game_t* game, char* filename){
+    
+    game->board = board_create();
+
+    game_load(game,filename);
+
+    return 0;
+  
+}
+
+void first_line_checker(game_t* game, int filas, int columnas){
+    
+    if (game->ciclos < 1){
+
+        perror("La cantidad de Ciclos no es valido. ");
+        exit(EXIT_FAILURE);
+        
+    }else if (filas < 1){
+        perror("La cantidad de Filas no es valida. ");
+        exit(EXIT_FAILURE);
+
+    }else if (columnas < 1){
+        perror("La cantidad de Columnas no es valida. ");
+        exit(EXIT_FAILURE);
+    }
+}
+
+int game_load(game_t* game, char *filename){
+
+    int filas,columnas;
+    FILE* archivo = fopen(filename,"r");
+
+    if(archivo == NULL){
+        perror("No se pudo abrir el archivo! ");
+        exit(EXIT_FAILURE);
+    }
+
+    fscanf(archivo, "%d %d %d",&game->ciclos,&filas,&columnas);
+    fclose(archivo);
+
+    first_line_checker(game,filas,columnas);
+
+    board_cells_create(game->board,filas,columnas);
+
+    board_init(game->board,filename);
+
+    return 0;
+
+}
+
+void game_writeBoard(game_t* game,char *filename){
+
+    int largo = strlen(filename);
+    char* filenameSalida = malloc(sizeof(char) * (largo+2));
+  
+    strncpy(filenameSalida, filename, largo - 4);
+
+    filenameSalida[largo - 4] = '\0'; // Borra hasta el punto sin incluir (para la extension .game)
+
+    strcat(filenameSalida, "final");
+
+    board_write(game->board,filenameSalida);
+
+    free(filenameSalida);
+
+}
+
+ 
+void reinicializar_globales(){
+
+    terminoCiclo  = 0;
+    indiceFila    = 0;
+    indiceColumna = 0;
+    actualizando  = 0;
+
+}
+
+
+void game_destroy(game_t* game){
+
+    board_destroy(game->board);
+    free(game);
+}
+
 
 /* Jugando */
 
@@ -142,78 +253,7 @@ int congwayGoL(game_t *game, const int nuproc){
 
     return 0;
 }
- 
-void reinicializar_globales(){
 
-    terminoCiclo  = 0;
-    indiceFila    = 0;
-    indiceColumna = 0;
-    actualizando  = 0;
-
-}
-
-/* Creacion, inicializacion y destruccion del juego*/
-
-game_t * game_create(){
-    
-    return malloc(sizeof(game_t));
-  
-}
-
-int game_init(game_t* game, char* filename){
-    
-    game->board = board_create();
-
-    game_load(game,filename);
-
-    return 0;
-  
-}
-
-int game_load(game_t* game, char *filename){
-
-    int filas,columnas;
-    FILE* archivo = fopen(filename,"r");
-
-    if(archivo == NULL){
-        perror("No se pudo abrir el archivo! ");
-    }
-
-    fscanf(archivo, "%d %d %d",&game->ciclos,&filas,&columnas);
-    fclose(archivo);
-
-    board_cells_create(game->board,filas,columnas);
-
-    board_init(game->board,filename);
-
-    
-
-    return 0;
-
-}
-
-void game_writeBoard(game_t* game,char *filename){
-
-    int largo = strlen(filename);
-    char* filenameSalida = malloc(sizeof(char) * (largo+2));
-  
-    strncpy(filenameSalida, filename, largo - 4);
-
-    filenameSalida[largo - 4] = '\0';
-
-    strcat(filenameSalida, "final");
-
-    board_write(game->board,filenameSalida);
-
-    free(filenameSalida);
-
-}
-
-void game_destroy(game_t* game){
-
-    board_destroy(game->board);
-    free(game);
-}
 
 /* Informacion del juego */
 
