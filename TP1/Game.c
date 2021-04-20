@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 
 
 /******************************************************************************/
@@ -212,12 +213,13 @@ void* criterio_divino(void* arg){
         pthread_mutex_lock(&lock);
 
         if(actualizando == 1){
+            printf("Ciclos %d\n",i+1);
             actualizar_tablero(game);
         }
 
-        pthread_mutex_unlock(&lock);
+        pthread_mutex_unlock(&lock); 
                     
-            //barrier_wait(barrera);
+        barrier_wait(barrera); // Evita que se actualice mas de 1 vez
     }
 
     
@@ -271,6 +273,7 @@ void game_show(game_t* game){
 
     printf("\n------------------\n  Tablero actual \n------------------\n\n");
     board_show(game->board);
+    sleep(1);
     printf("\n");
 }
 
