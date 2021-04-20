@@ -33,73 +33,19 @@ void reinicializar_globales();
 void actualizar_tablero(game_t* game);
 int get_vecinos_vivos(game_t* game,int row, int col);
 void juicio_divino(game_t* game,int row, int col);
+void aplicar_juicio(game_t* game, int row, int col, int sociedadViva);
 
 
 /******************************************************************************/
 
-void game_set_value(game_t* game, int row, int col, int value){
-    board_proxGen_set(game->board,row,col,value);
-}
+/* Jugando */
 
-int get_vecinos_vivos(game_t* game,int row, int col){
-
-    int sociedadViva = 8;
-
-    sociedadViva -= game_vecino_superior(game,row,col);
-    sociedadViva -= game_vecino_superior_i(game,row,col);   
-    sociedadViva -= game_vecino_superior_d(game,row,col);
-
-    sociedadViva -= game_vecino_inferior(game,row,col);
-    sociedadViva -= game_vecino_inferior_i(game,row,col);
-    sociedadViva -= game_vecino_inferior_d(game,row,col);
-
-    sociedadViva -= game_vecino_lateral_i(game,row,col);
-    sociedadViva -= game_vecino_lateral_d(game,row,col);
-
-    return sociedadViva;
-
-}
-
-void aplicar_juicio(game_t* game, int row, int col, int sociedadViva){
-
-    int estadoActual = board_get(game->board,row,col);
-    
-    if (mandato_vive(sociedadViva,estadoActual) == ALIVE){
-
-        board_proxGen_set(game->board,row,col,ALIVE);
-
-    }else{
-
-        board_proxGen_set(game->board,row,col,DEAD);
-    }
-
-}
 
 void juicio_divino(game_t* game,int row, int col){
 
     int sociedadViva = get_vecinos_vivos(game,row,col);
 
     aplicar_juicio(game,row,col,sociedadViva);
-
-}
-
-void reinicializar_globales(){
-
-    terminoCiclo  = 0;
-    indiceFila    = 0;
-    indiceColumna = 0;
-    actualizando  = 0;
-
-}
-
-void actualizar_tablero(game_t* game){
-
-
-        board_interchange(game->board);
-
-        game_show(game);
-
-        reinicializar_globales();
 
 }
 
@@ -168,6 +114,7 @@ void* criterio_divino(void* arg){
     pthread_exit(EXIT_SUCCESS);
 }
 
+/* Congway */
 int congwayGoL(game_t *game, const int nuproc){
 
     pthread_t dios[nuproc];
@@ -175,7 +122,6 @@ int congwayGoL(game_t *game, const int nuproc){
     barrera = barrier_create();
     barrier_init(barrera,nuproc);
     
-
 
     /* Creacion de hilos */
     for(int i=0; i < nuproc; i++){
@@ -194,6 +140,15 @@ int congwayGoL(game_t *game, const int nuproc){
 
 }
  
+void reinicializar_globales(){
+
+    terminoCiclo  = 0;
+    indiceFila    = 0;
+    indiceColumna = 0;
+    actualizando  = 0;
+
+}
+
 /* Creacion, inicializacion y destruccion del juego*/
 
 game_t * game_create(){
@@ -261,6 +216,25 @@ void game_show(game_t* game){
     printf("\n------------------\n  Tablero actual \n------------------\n\n");
     board_show(game->board);
     printf("\n");
+}
+
+int get_vecinos_vivos(game_t* game,int row, int col){
+
+    int sociedadViva = 8;
+
+    sociedadViva -= game_vecino_superior(game,row,col);
+    sociedadViva -= game_vecino_superior_i(game,row,col);   
+    sociedadViva -= game_vecino_superior_d(game,row,col);
+
+    sociedadViva -= game_vecino_inferior(game,row,col);
+    sociedadViva -= game_vecino_inferior_i(game,row,col);
+    sociedadViva -= game_vecino_inferior_d(game,row,col);
+
+    sociedadViva -= game_vecino_lateral_i(game,row,col);
+    sociedadViva -= game_vecino_lateral_d(game,row,col);
+
+    return sociedadViva;
+
 }
 
 int game_vecino_superior(game_t *game,int row,int col){
@@ -357,6 +331,38 @@ int game_vecino_lateral_d(game_t *game,int row,int col){
     int columnaPosterior  = (col + 1) % game_getCantColumnas(game);
     
     return board_get(game->board,row,columnaPosterior);
+}
+
+/* Modificar tablero */
+
+void aplicar_juicio(game_t* game, int row, int col, int sociedadViva){
+
+    int estadoActual = board_get(game->board,row,col);
+    
+    if (mandato_vive(sociedadViva,estadoActual) == ALIVE){
+
+        board_proxGen_set(game->board,row,col,ALIVE);
+
+    }else{
+
+        board_proxGen_set(game->board,row,col,DEAD);
+    }
+
+}
+
+void game_set_value(game_t* game, int row, int col, int value){
+    board_proxGen_set(game->board,row,col,value);
+}
+
+void actualizar_tablero(game_t* game){
+
+
+        board_interchange(game->board);
+
+        game_show(game);
+
+        reinicializar_globales();
+
 }
 
 /* Condicionales */
