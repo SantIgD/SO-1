@@ -26,23 +26,12 @@ int indiceFila=0,indiceColumna=0;
 
 /* Funciones internas */
 
-int vecino_superior(game_t *game,int row,int col);
-int vecino_superior_i(game_t *game,int row,int col);
-int vecino_superior_d(game_t *game,int row,int col);
-int vecino_inferior(game_t *game,int row,int col);
-int vecino_inferior_i(game_t *game,int row,int col);
-int vecino_inferior_d(game_t *game,int row,int col);
-int vecino_lateral_i(game_t *game,int row,int col);
-int vecino_lateral_d(game_t *game,int row,int col);
 int mandato_vive(int vecinosVivos,int estadoActual);
 void avanzar_celula(game_t* game);
-void game_set_value(game_t* game, int row, int col, int value);
 void juicio_divino(game_t* game,int row, int col);
 void reinicializar_globales();
 void actualizar_tablero(game_t* game);
 int get_vecinos_vivos(game_t* game,int row, int col);
-int game_getCantFilas(game_t* game);
-int game_getCantColumnas(game_t* game);
 void juicio_divino(game_t* game,int row, int col);
 
 
@@ -56,16 +45,16 @@ int get_vecinos_vivos(game_t* game,int row, int col){
 
     int sociedadViva = 8;
 
-    sociedadViva -= vecino_superior(game,row,col);
-    sociedadViva -= vecino_superior_i(game,row,col);   
-    sociedadViva -= vecino_superior_d(game,row,col);
+    sociedadViva -= game_vecino_superior(game,row,col);
+    sociedadViva -= game_vecino_superior_i(game,row,col);   
+    sociedadViva -= game_vecino_superior_d(game,row,col);
 
-    sociedadViva -= vecino_inferior(game,row,col);
-    sociedadViva -= vecino_inferior_i(game,row,col);
-    sociedadViva -= vecino_inferior_d(game,row,col);
+    sociedadViva -= game_vecino_inferior(game,row,col);
+    sociedadViva -= game_vecino_inferior_i(game,row,col);
+    sociedadViva -= game_vecino_inferior_d(game,row,col);
 
-    sociedadViva -= vecino_lateral_i(game,row,col);
-    sociedadViva -= vecino_lateral_d(game,row,col);
+    sociedadViva -= game_vecino_lateral_i(game,row,col);
+    sociedadViva -= game_vecino_lateral_d(game,row,col);
 
     return sociedadViva;
 
@@ -274,7 +263,7 @@ void game_show(game_t* game){
     printf("\n");
 }
 
-int vecino_superior(game_t *game,int row,int col){
+int game_vecino_superior(game_t *game,int row,int col){
 
     if ( row == 0 ){
 
@@ -287,7 +276,7 @@ int vecino_superior(game_t *game,int row,int col){
     return board_get(game->board,filaAnterior,col);
 }
 
-int vecino_superior_i(game_t *game,int row,int col){
+int game_vecino_superior_i(game_t *game,int row,int col){
 
     if ( row == 0 ){
 
@@ -307,7 +296,7 @@ int vecino_superior_i(game_t *game,int row,int col){
     return board_get(game->board,filaAnterior,columnaAnterior);
 }
 
-int vecino_superior_d(game_t *game,int row,int col){
+int game_vecino_superior_d(game_t *game,int row,int col){
 
     if ( row == 0 ){
 
@@ -321,14 +310,14 @@ int vecino_superior_d(game_t *game,int row,int col){
     return board_get(game->board,filaAnterior,columnaPosterior);
 }
 
-int vecino_inferior(game_t *game,int row,int col){
+int game_vecino_inferior(game_t *game,int row,int col){
 
     int filaPosterior = (row + 1) % game_getCantFilas(game);
    
     return board_get(game->board,filaPosterior,col);
 }
 
-int vecino_inferior_i(game_t *game,int row,int col){
+int game_vecino_inferior_i(game_t *game,int row,int col){
 
     int filaPosterior     = (row + 1) % game_getCantFilas(game);
 
@@ -343,7 +332,7 @@ int vecino_inferior_i(game_t *game,int row,int col){
     return board_get(game->board,filaPosterior,columnaAnterior);
 }
 
-int vecino_inferior_d(game_t *game,int row,int col){
+int game_vecino_inferior_d(game_t *game,int row,int col){
 
     int filaPosterior     = (row + 1) % game_getCantFilas(game);
     int columnaPosterior  = (col + 1) % game_getCantColumnas(game);
@@ -351,7 +340,7 @@ int vecino_inferior_d(game_t *game,int row,int col){
     return board_get(game->board,filaPosterior,columnaPosterior);
 }
 
-int vecino_lateral_i(game_t *game,int row,int col){
+int game_vecino_lateral_i(game_t *game,int row,int col){
     
     if ( col == 0 ){
 
@@ -363,7 +352,7 @@ int vecino_lateral_i(game_t *game,int row,int col){
     return board_get(game->board,row,columnaAnterior);
 }
 
-int vecino_lateral_d(game_t *game,int row,int col){
+int game_vecino_lateral_d(game_t *game,int row,int col){
 
     int columnaPosterior  = (col + 1) % game_getCantColumnas(game);
     
