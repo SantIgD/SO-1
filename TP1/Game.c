@@ -138,6 +138,9 @@ int congwayGoL(game_t *game, const int nuproc){
     for(int i=0; i < nuproc; i++)
         assert(! pthread_join(dios[i], NULL));
 
+    barrier_destroy(barrera);
+
+    return 0;
 }
  
 void reinicializar_globales(){
@@ -162,6 +165,8 @@ int game_init(game_t* game, char* filename){
     game->board = board_create();
 
     game_load(game,filename);
+
+    return 0;
   
 }
 
@@ -189,7 +194,18 @@ int game_load(game_t* game, char *filename){
 
 void game_writeBoard(game_t* game,char *filename){
 
-    board_write(game->board,filename);
+    int largo = strlen(filename);
+    char* filenameSalida = malloc(sizeof(char) * (largo+2));
+  
+    strncpy(filenameSalida, filename, largo - 4);
+
+    filenameSalida[largo - 4] = '\0';
+
+    strcat(filenameSalida, "final");
+
+    board_write(game->board,filenameSalida);
+
+    free(filenameSalida);
 
 }
 
