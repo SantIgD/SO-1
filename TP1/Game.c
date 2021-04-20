@@ -43,6 +43,7 @@ void actualizar_tablero(game_t* game);
 int get_vecinos_vivos(game_t* game,int row, int col);
 int game_getCantFilas(game_t* game);
 int game_getCantColumnas(game_t* game);
+void juicio_divino(game_t* game,int row, int col);
 
 
 /******************************************************************************/
@@ -70,9 +71,7 @@ int get_vecinos_vivos(game_t* game,int row, int col){
 
 }
 
-void juicio_divino(game_t* game,int row, int col){
-
-    int sociedadViva = get_vecinos_vivos(game,row,col);
+void aplicar_juicio(game_t* game, int row, int col, int sociedadViva){
 
     int estadoActual = board_get(game->board,row,col);
     
@@ -84,6 +83,15 @@ void juicio_divino(game_t* game,int row, int col){
 
         board_proxGen_set(game->board,row,col,DEAD);
     }
+
+}
+
+void juicio_divino(game_t* game,int row, int col){
+
+    int sociedadViva = get_vecinos_vivos(game,row,col);
+
+    aplicar_juicio(game,row,col,sociedadViva);
+
 }
 
 void reinicializar_globales(){
