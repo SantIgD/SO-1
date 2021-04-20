@@ -6,7 +6,7 @@
 
 
 /******************************************************************************/
-/* Representamos las células vivas como 'O' y las muertas como 'X' */
+/* Representamos las células vivas como (0) y las muertas como (1) */
 /******************************************************************************/
 struct _game{
 
@@ -15,19 +15,195 @@ struct _game{
 
 };
 
+
+/* Variables Globales */
+
 barrier_t* barrera;
 pthread_mutex_t lock;
-int actualizando = 1,terminoCiclo = 0;
+int actualizando = 0,terminoCiclo = 0;
 int indiceFila=0,indiceColumna=0;
 
+
+/* Funciones internas */
+
+int vecino_superior(game_t *game,int row,int col);
+int vecino_superior_i(game_t *game,int row,int col);
+int vecino_superior_d(game_t *game,int row,int col);
+int vecino_inferior(game_t *game,int row,int col);
+int vecino_inferior_i(game_t *game,int row,int col);
+int vecino_inferior_d(game_t *game,int row,int col);
+int vecino_lateral_i(game_t *game,int row,int col);
+int vecino_lateral_d(game_t *game,int row,int col);
+int mandato_vive(int vecinosVivos,int estadoActual);
+void avanzar_celula(game_t* game);
+void game_set_value(game_t* game, int row, int col, int value);
+void juicio_divino(game_t* game,int row, int col);
+void reinicializar_globales();
+void actualizar_tablero(game_t* game);
+int get_vecinos_vivos(game_t* game,int row, int col);
+int game_getCantFilas(game_t* game);
+int game_getCantColumnas(game_t* game);
+
+
 /******************************************************************************/
+
+void game_set_value(game_t* game, int row, int col, int value){
+    board_proxGen_set(game->board,row,col,value);
+}
+
+int get_vecinos_vivos(game_t* game,int row, int col){
+
+    int sociedadViva = 8;
+
+    sociedadViva -= vecino_superior(game,row,col);
+    sociedadViva -= vecino_superior_i(game,row,col);   
+    sociedadViva -= vecino_superior_d(game,row,col);
+
+    sociedadViva -= vecino_inferior(game,row,col);
+    sociedadViva -= vecino_inferior_i(game,row,col);
+    sociedadViva -= vecino_inferior_d(game,row,col);
+
+    sociedadViva -= vecino_lateral_i(game,row,col);
+    sociedadViva -= vecino_lateral_d(game,row,col);
+
+    return sociedadViva;
+
+}
+
+void juicio_divino(game_t* game,int row, int col){
+
+    int sociedadViva = get_vecinos_vivos(game,row,col);
+
+    int estadoActual = board_get(game->board,row,col);
+    
+    if (mandato_vive(sociedadViva,estadoActual) == ALIVE){
+
+        board_proxGen_set(game->board,row,col,ALIVE);
+
+    }else{
+
+        board_proxGen_set(game->board,row,col,DEAD);
+    }
+}
+
+void reinicializar_globales(){
+
+    terminoCiclo  = 0;
+    indiceFila    = 0;
+    indiceColumna = 0;
+    actualizando  = 0;
+
+}
+
+void actualizar_tablero(game_t* game){
+
+
+        board_interchange(game->board);
+
+        game_show(game);
+
+        reinicializar_globales();
+
+}
+
+void do_ciclo(game_t* game, int indiceFilaHilo, int indiceColumnaHilo){
+
+    while(!terminoCiclo){
+
+            pthread_mutex_lock(&lock);
+
+            if (!terminoCiclo){
+                
+                indiceFilaHilo = indiceFila;
+                indiceColumnaHilo = indiceColumna;
+
+                avanzar_celula(game);
+
+                if (indiceFilaHilo == game_getCantFilas(game)-1
+                &&  indiceColumnaHilo == game_getCantColumnas(game)-1){
+                    terminoCiclo = 1;
+                    actualizando = 1;
+                }
+            }
+
+            pthread_mutex_unlock(&lock);
+
+            
+            if (!terminoCiclo 
+               || (indiceFilaHilo == game_getCantFilas(game)-1
+               &&  indiceColumnaHilo == game_getCantColumnas(game)-1)){
+                juicio_divino(game,indiceFilaHilo,indiceColumnaHilo);
+            }
+            
+
+        }
+        
+    
+}
+
+void* criterio_divino(void* arg){
+
+    game_t* game = (game_t*) arg;
+
+    int indiceFilaHilo ,indiceColumnaHilo;
+
+    for(int i=0; i < game->ciclos; i++){
+
+        do_ciclo(game,indiceFilaHilo,indiceColumnaHilo);
+        
+        barrier_wait(barrera);
+    
+        /* Actualizar tablero */ 
+
+        pthread_mutex_lock(&lock);
+
+        if(actualizando == 1){
+            actualizar_tablero(game);
+        }
+
+        pthread_mutex_unlock(&lock);
+                    
+            //barrier_wait(barrera);
+    }
+
+    
+
+    pthread_exit(EXIT_SUCCESS);
+}
+
+int congwayGoL(game_t *game, const int nuproc){
+
+    pthread_t dios[nuproc];
+    pthread_mutex_init(&lock,NULL);
+    barrera = barrier_create();
+    barrier_init(barrera,nuproc);
+    
+
+
+    /* Creacion de hilos */
+    for(int i=0; i < nuproc; i++){
+
+        /* Habilitamos a los dioses */
+        assert(!pthread_create( &dios[i]
+                                , NULL
+                                , criterio_divino
+                                , (void*) game));
+    
+    }    
+        
+    /* Esperar a que terminen */
+    for(int i=0; i < nuproc; i++)
+        assert(! pthread_join(dios[i], NULL));
+
+}
  
+/* Creacion, inicializacion y destruccion del juego*/
+
 game_t * game_create(){
     
     return malloc(sizeof(game_t));
   
 }
-
 
 int game_init(game_t* game, char* filename){
     
@@ -37,7 +213,6 @@ int game_init(game_t* game, char* filename){
   
 }
 
-/* Cargamos el juego desde un archivo */
 int game_load(game_t* game, char *filename){
 
     int filas,columnas;
@@ -60,12 +235,19 @@ int game_load(game_t* game, char *filename){
 
 }
 
-/* Guardamos el tablero 'board' en el archivo 'filename' */
 void game_writeBoard(game_t* game,char *filename){
 
     board_write(game->board,filename);
 
 }
+
+void game_destroy(game_t* game){
+
+    board_destroy(game->board);
+    free(game);
+}
+
+/* Informacion del juego */
 
 int game_getCantFilas(game_t* game){
 
@@ -77,13 +259,11 @@ int game_getCantColumnas(game_t* game){
     return board_getCantColumnas(game->board);
 }
 
-void avanzar_celula(game_t* game){
-    
-    indiceColumna++;
-    if(indiceColumna == game_getCantColumnas(game)){
-        indiceColumna = 0;
-        indiceFila++;
-    }
+void game_show(game_t* game){
+
+    printf("\n------------------\n  Tablero actual \n------------------\n\n");
+    board_show(game->board);
+    printf("\n");
 }
 
 int vecino_superior(game_t *game,int row,int col){
@@ -99,7 +279,7 @@ int vecino_superior(game_t *game,int row,int col){
     return board_get(game->board,filaAnterior,col);
 }
 
-int  vecino_superior_i(game_t *game,int row,int col){
+int vecino_superior_i(game_t *game,int row,int col){
 
     if ( row == 0 ){
 
@@ -133,14 +313,14 @@ int vecino_superior_d(game_t *game,int row,int col){
     return board_get(game->board,filaAnterior,columnaPosterior);
 }
 
-int  vecino_inferior(game_t *game,int row,int col){
+int vecino_inferior(game_t *game,int row,int col){
 
     int filaPosterior = (row + 1) % game_getCantFilas(game);
    
     return board_get(game->board,filaPosterior,col);
 }
 
-int  vecino_inferior_i(game_t *game,int row,int col){
+int vecino_inferior_i(game_t *game,int row,int col){
 
     int filaPosterior     = (row + 1) % game_getCantFilas(game);
 
@@ -182,10 +362,7 @@ int vecino_lateral_d(game_t *game,int row,int col){
     return board_get(game->board,row,columnaPosterior);
 }
 
-
-void game_set_value(game_t* game, int row, int col, int value){
-    board_proxGen_set(game->board,row,col,value);
-}
+/* Condicionales */
 
 int mandato_vive(int vecinosVivos,int estadoActual){
 
@@ -200,146 +377,14 @@ int mandato_vive(int vecinosVivos,int estadoActual){
 
 }
 
-void juicio_divino(game_t* game,int row, int col){
+/* Mecanismos internos */
 
-    int sociedadViva = 8;
-
-    sociedadViva -= vecino_superior(game,row,col);
-    sociedadViva -= vecino_superior_i(game,row,col);   
-    sociedadViva -= vecino_superior_d(game,row,col);
-
-    sociedadViva -= vecino_inferior(game,row,col);
-    sociedadViva -= vecino_inferior_i(game,row,col);
-    sociedadViva -= vecino_inferior_d(game,row,col);
-
-    sociedadViva -= vecino_lateral_i(game,row,col);
-    sociedadViva -= vecino_lateral_d(game,row,col);
-
-    int estadoActual = board_get(game->board,row,col);
-
+void avanzar_celula(game_t* game){
     
-    
-    if (mandato_vive(sociedadViva,estadoActual) == ALIVE){
-
-        //printf("[VIVE] (%d,%d) Estado actual = %d, vivos = %d\n",row,col,estadoActual,sociedadViva);    
-        board_proxGen_set(game->board,row,col,ALIVE);
-
-    }else{
-
-        //printf("[MUERE] (%d,%d) Estado actual = %d, vivos = %d\n",row,col,estadoActual,sociedadViva);
-        board_proxGen_set(game->board,row,col,DEAD);
+    indiceColumna++;
+    if(indiceColumna == game_getCantColumnas(game)){
+        indiceColumna = 0;
+        indiceFila++;
     }
-
-
 }
 
-void* criterio_divino(void* arg){
-
-    game_t* game = (game_t*) arg;
-
-    int indiceFilaHilo ,indiceColumnaHilo;
-    for(int i=0; i < game->ciclos; i++){
-
-        while(!terminoCiclo){
-
-            pthread_mutex_lock(&lock);
-
-            if (!terminoCiclo){
-                
-                indiceFilaHilo = indiceFila;
-                indiceColumnaHilo = indiceColumna;
-
-                avanzar_celula(game);
-
-                if (indiceFilaHilo == game_getCantFilas(game)-1
-                &&  indiceColumnaHilo == game_getCantColumnas(game)-1){
-                    terminoCiclo = 1;
-                    actualizando = 1;
-                }
-            }
-
-            pthread_mutex_unlock(&lock);
-
-            
-            if (!terminoCiclo 
-               || (indiceFilaHilo == game_getCantFilas(game)-1
-               &&  indiceColumnaHilo == game_getCantColumnas(game)-1)){
-                //printf("Coordenadas en el tablero (%d,%d)\n ",indiceFilaHilo,indiceColumnaHilo);
-                juicio_divino(game,indiceFilaHilo,indiceColumnaHilo);
-            }
-            
-
-        }
-
-        
-
-            //barrier
-            barrier_wait(barrera);
-          
-
-            //---> actualizamos
-            pthread_mutex_lock(&lock);
-            if(actualizando == 1){
-
-                board_interchange(game->board);
-                game_show(game);
-                terminoCiclo  = 0;
-                indiceFila    = 0;
-                indiceColumna = 0;
-                actualizando  = 0;
-            }
-            pthread_mutex_unlock(&lock);
-                
-            //barrier
-            barrier_wait(barrera);
-        
-        //printf("vamos por la iteracion: %d\n", i );
-
-    }
-
-    
-
-    pthread_exit(EXIT_SUCCESS);
-}
-
-/* Simulamos el Juego de la Vida de Conway con tablero 'board' la cantidad de
-ciclos indicados en 'cycles' en 'nuprocs' unidades de procesamiento*/
-int congwayGoL(game_t *game, const int nuproc){
-
-    pthread_t dios[nuproc];
-    pthread_mutex_init(&lock,NULL);
-    barrera = barrier_create();
-    barrier_init(barrera,nuproc);
-    
-
-
-        //crear hilos
-    for(int i=0; i < nuproc; i++){
-
-        /* Habilitamos a los dioses */
-        assert(!pthread_create( &dios[i]
-                                , NULL
-                                , criterio_divino
-                                , (void*) game));
-    
-    }    
-        
-    //cerrarlos
-    for(int i=0; i < nuproc; i++)
-        assert(! pthread_join(dios[i], NULL));
-
-}
- 
-
-void game_show(game_t* game){
-
-    printf("\n------------------\n  Tablero actual \n------------------\n\n");
-    board_show(game->board);
-    printf("\n");
-}
-
-void game_destroy(game_t* game){
-
-    board_destroy(game->board);
-    free(game);
-}

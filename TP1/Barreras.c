@@ -3,20 +3,13 @@
 #include <stdio.h>
 #include "Barreras.h"
 
-/* Definición de la estructura y sinónimo de tipo.*/
 struct cond_barrier{
 
     int cantHilos,contador;
     pthread_cond_t terminoBloque;
     pthread_mutex_t candadoEntreBloques;
 
-
 };
-
-/************/
-
-/************/
-/* Operaciones*/
 
 barrier_t* barrier_create(){
 
@@ -24,8 +17,6 @@ barrier_t* barrier_create(){
     
 }
 
-/* Creación de una barrera de condición, tomando como argumento la cantidad de
-hilos que se van a esperar*/
 int barrier_init(barrier_t *barr, unsigned int count){
 
     barr->cantHilos = count;
@@ -38,7 +29,6 @@ int barrier_init(barrier_t *barr, unsigned int count){
     return 0;
 }
 
-/* Función *bloqueante* para esperar a los demás hilos */
 int barrier_wait(barrier_t *barr){
 
     pthread_mutex_lock(&barr->candadoEntreBloques);
@@ -57,7 +47,6 @@ int barrier_wait(barrier_t *barr){
     return 0;
 }
 
-/* Eliminación de la barrera */
 int barrier_destroy(barrier_t *barr){
 
     pthread_cond_destroy(&barr->terminoBloque);
