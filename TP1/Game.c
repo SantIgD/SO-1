@@ -39,44 +39,42 @@ int indiceFila=0,indiceColumna=0;
 /* Funciones internas */
 /******************************************************************************/
 
-/* Chequea que los ciclos, filas y columnas sean correctos */
-void first_line_checker(game_t * game,int filas,int columnas);
-
 /* Reinicializa las variables globales que se utilizan para el proceso de los ciclos y criterio divino*/
 void reinicializar_globales();
 
 /* Es el criterio de los dioses, busca la informacion y llevan a cabo los ciclos que definen las siguientes generaciones*/
 void* criterio_divino(void* arg);
 
-/* Condicional que establece cuando una celula vive/muere/se mantiene muerta/revive */
-int mandato_vive(int vecinosVivos,int estadoActual);
-
-/* Avanza los indices del tablero para que eventualmente se otorguen las tareas a los dioses*/
-void avanzar_celula(game_t* game);
-
-/* Obtiene la cantidad de vecinos vivos y llama a aplicar juicio*/
-void juicio_divino(game_t* game,int row, int col);
+/* Obtiene la cantidad de vecinos vivos que tiene la celula en la posicion (row,col) del tablero*/
+int get_vecinos_vivos(game_t* game,int row, int col);
 
 /* Aplica las reglas para el proximo estado de la celula en cuestion*/
 void aplicar_juicio(game_t* game, int row, int col, int sociedadViva);
 
-
 /* Actualiza el tablero actual*/
 void actualizar_tablero(game_t* game);
 
-/* Obtiene la cantidad de vecinos vivos que tiene la celula en la posicion (row,col) del tablero*/
-int get_vecinos_vivos(game_t* game,int row, int col);
+/* Condicional que establece cuando una celula vive/muere/se mantiene muerta/revive */
+int mandato_vive(int vecinosVivos,int estadoActual);
 
+/* Verifica que se pueda aplicar la funcion juicio_divino*/
+int condicion_aplicar_juicio(game_t* game, int indiceFilaHilo,int indiceColumnaHilo);
 
+/* Avanza los indices del tablero para que eventualmente se otorguen las tareas a los dioses*/
+void avanzar_celula(game_t* game);
 
-/* Implementacion de algoritmo de ciclo*/
-void do_ciclo(game_t* game, int indiceFilaHilo, int indiceColumnaHilo);
+/* Chequea que los ciclos, filas y columnas sean correctos */
+void first_line_checker(game_t * game,int filas,int columnas);
 
 /* Chequea que ya se hayan actualizado todas las velulas del tablero*/
 void chequear_fin_ciclo(game_t* game, int indiceFilaHilo,int indiceColumnaHilo);
 
-/* Verifica que se pueda aplicar la funcion juicio_divino*/
-int condicion_aplicar_juicio(game_t* game, int indiceFilaHilo,int indiceColumnaHilo);
+/* Obtiene la cantidad de vecinos vivos y llama a aplicar juicio*/
+void juicio_divino(game_t* game,int row, int col);
+
+/* Implementacion de algoritmo de ciclo*/
+void do_ciclo(game_t* game, int indiceFilaHilo, int indiceColumnaHilo);
+
 
 /******************************************************************************/
 
@@ -86,7 +84,7 @@ int condicion_aplicar_juicio(game_t* game, int indiceFilaHilo,int indiceColumnaH
 
 game_t * game_create(){
     
-      // Asignamos memoria a la estructura _game.
+    // Asignamos memoria a la estructura _game.
     return malloc(sizeof(game_t));
   
 }
@@ -396,6 +394,7 @@ void aplicar_juicio(game_t* game, int row, int col, int sociedadViva){
 
 }
 
+//OBVIABLE??????
 void game_set_value(game_t* game, int row, int col, int value){
     board_proxGen_set(game->board,row,col,value);
 }
@@ -420,6 +419,7 @@ int mandato_vive(int vecinosVivos,int estadoActual){
 
     int resp = DEAD;
 
+
     if ((estadoActual == ALIVE && (vecinosVivos == 2 || vecinosVivos ==3))
                             || 
         (estadoActual == DEAD && vecinosVivos == 3)){
@@ -429,6 +429,7 @@ int mandato_vive(int vecinosVivos,int estadoActual){
 
 }
 
+//NOTA ES NECESARIA LA CONDICION O--------------------------------------------------
 int condicion_aplicar_juicio(game_t* game, int indiceFilaHilo,int indiceColumnaHilo){
 
     return (!terminoCiclo 

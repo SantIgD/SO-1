@@ -8,9 +8,11 @@
 
 /******************************************************************************/
 /* Definición de la estructura de datos del tablero */
+/******************************************************************************/
 
 struct _board;
 typedef struct _board board_t;
+
 /******************************************************************************/
 
 /******************************************************************************/
@@ -36,7 +38,6 @@ void board_write(board_t* board, char* filename);
 /* Destruye el tablero */
 void board_destroy(board_t *board);
 
-//a la posición (row,col), (row,col+1),..., (row,col+cant)---------------------------------------------------------
 /* Asigna cant veces 'val' desde la columna cow de manera consecutiva a la fila row del tablero*/
 int board_actual_set(board_t* board,int row,int col,int cant,char val);
 
@@ -55,7 +56,7 @@ int board_getCantFilas(board_t * board);
 /* Devuelve la cantidad de columnas del tablero*/
 int board_getCantColumnas(board_t * board);
 
-/* Función para mostrar el tablero (lo imprime)*/
+/* Función para mostrar el tablero (lo imprime en pantalla)*/
 void board_show(board_t* board);
 
 /******************************************************************************/
