@@ -212,14 +212,16 @@ int congwayGoL(game_t *game, const int nuproc){
     scanf(" %c",&resp);
     if(resp == 'S' || resp == 's'){
         mostrar = 1;
-    }
 
-
-    printf("Si desea pausar entre generaciones ingrese S, sino cualquier letra: ");
-    scanf(" %c",&resp);
-    if(resp == 'S' || resp == 's'){
+        printf("Si desea pausar entre generaciones ingrese S, sino cualquier letra: ");
+        scanf(" %c",&resp);
+        if(resp == 'S' || resp == 's'){
         pausarEntre = 1;
     }
+    }
+
+
+    
 
     game_show(game);
     /* futuros hilos */
