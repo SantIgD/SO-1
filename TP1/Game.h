@@ -36,10 +36,9 @@ void game_writeBoard(game_t* game, char *filename);
 void game_destroy(game_t* game);
 
 /* Simula el Juego de la Vida de Conway con tablero 'board' la cantidad de
-ciclos indicados en 'cycles' en 'nuprocs' unidades de procesamiento*/
+ciclos indicados en 'cycles' (ambos en la estructura game) y en 'nuprocs' la cantidad de hilos disponibles*/
 int congwayGoL(game_t *game , const int nuproc);
 
-//Estas dos son obviables?---------------------------------------------------
 /* Guarda el juego en un archivo de salida */
 int game_getCantFilas(game_t* game);
 

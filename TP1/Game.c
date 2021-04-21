@@ -144,7 +144,7 @@ void game_writeBoard(game_t* game,char *filename){
 
 }
 
- //ESTA DEBERIA ESTAR ACA??????------------------------------------------------------------
+
 void reinicializar_globales(){
 
     terminoCiclo  = 0;
@@ -230,7 +230,7 @@ int congwayGoL(game_t *game, const int nuproc){
 
     /* Destruimos la barrera y el candado */
     barrier_destroy(barrera);
-    pthread_mutex_destroy(&lock):
+    pthread_mutex_destroy(&lock);
 
     return 0;
 }
@@ -394,7 +394,6 @@ void aplicar_juicio(game_t* game, int row, int col, int sociedadViva){
 
 }
 
-//OBVIABLE??????
 void game_set_value(game_t* game, int row, int col, int value){
     board_proxGen_set(game->board,row,col,value);
 }
@@ -429,7 +428,6 @@ int mandato_vive(int vecinosVivos,int estadoActual){
 
 }
 
-//NOTA ES NECESARIA LA CONDICION O--------------------------------------------------
 int condicion_aplicar_juicio(game_t* game, int indiceFilaHilo,int indiceColumnaHilo){
 
     return (!terminoCiclo 

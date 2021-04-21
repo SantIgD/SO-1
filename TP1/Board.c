@@ -57,18 +57,41 @@ int board_cells_create(board_t* board,int row,int col){
 
 }
 
+int obtener_cantidad(char* str,int indice,int cant_indiceChar[2]){
+    char valor[100];
+    int i=0;
+    
+    for (; str[indice] != '\n' && str[indice] != 'X' && str[indice] != 'O'; indice++ ){
+        valor[i] = str[indice];
+        i++;
+    }
+    valor[i] = '\0';
+
+    cant_indiceChar[0] = atoi(valor);
+    cant_indiceChar[1] = strlen(valor);
+
+    return 0;
+    
+
+}
+
 int board_load(board_t *board, char *str,int row){
     
     int columna=0 , cantidad=0;
     int longitud = strlen(str);
+    int cant_indiceChar[2];
     
+    //printf("longitud :%d",longitud);
     // Cargamos los datos en la fila row del tableroActual 
     // de board desde str
-    for(int i = 0; i < longitud; i=i+2){
+    for(int i = 0; i < longitud-1;){
 
-        cantidad = atoi((const char* ) &str[i]);
-        board_actual_set(board,row,columna,cantidad,str[i+1]);
-        columna += cantidad;
+        obtener_cantidad(str,i,cant_indiceChar);
+        board_actual_set(board,row,columna,cant_indiceChar[0],str[cant_indiceChar[1]+i]);
+
+        columna += cant_indiceChar[0];
+        i+=cant_indiceChar[1]+1;
+
 
     }
 
@@ -100,8 +123,8 @@ int board_init(board_t *board,char* filename){
     }
 
     // Perdemos la primera linea, que ya la leimos 
-    // (con 7 caracteres leidos nos alcanza para que lea el \n de fin de linea)   
-    fgets(linea,7,archivo);
+    // (con 1024 caracteres leidos nos alcanza para que lea el \n de fin de linea)   
+    fgets(linea,1024,archivo);
 
     // Linea 0 del tableroActual de board
     fgets(linea,cantidadLetras,archivo); 
@@ -170,24 +193,6 @@ void board_destroy(board_t *board){
 
 /******************************************************************************/
 
-/******************************************************************************/
-/* Internas */
-/******************************************************************************/
-
-int get_state(char val){
-
-    int estado = 0;
-
-    if (val=='X'){
-        estado = 1;
-
-    }
-    
-    return estado;
-
-}
-
-/******************************************************************************/
 
 /******************************************************************************/
 /* Setear informacion del tablero */
@@ -222,7 +227,7 @@ void board_interchange(board_t* board){
 /******************************************************************************/
 
 /******************************************************************************/
-/* Obtener informacion del tablero*/
+/* Informacion del tablero*/
 /******************************************************************************/
 
 int board_get(board_t* board, int row, int col){
@@ -262,6 +267,25 @@ void board_show(board_t* board){
             printf("|\n");
 
     }
+
+}
+
+/******************************************************************************/
+
+/******************************************************************************/
+/* Mecanismos Internos */
+/******************************************************************************/
+
+int get_state(char val){
+
+    int estado = 0;
+
+    if (val=='X'){
+        estado = 1;
+
+    }
+    
+    return estado;
 
 }
 
