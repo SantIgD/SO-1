@@ -46,6 +46,7 @@ void aplicar_juicio(game_t* game, int row, int col, int sociedadViva);
 /* Reinicializa las variables globales que se utilizan para el proceso de los ciclos y criterio divino*/
 void reinicializar_globales();
 
+/* Actualiza el tablero actual*/
 void actualizar_tablero(game_t* game);
 
 /* Obtiene la cantidad de vecinos vivos que tiene la celula en la posicion (row,col) del tablero*/
@@ -57,8 +58,10 @@ void* criterio_divino(void* arg);
 /* Implementacion de algoritmo de ciclo*/
 void do_ciclo(game_t* game, int indiceFilaHilo, int indiceColumnaHilo);
 
+/* Chequea que ya se hayan actualizado todas las velulas del tablero*/
 void chequear_fin_ciclo(game_t* game, int indiceFilaHilo,int indiceColumnaHilo);
 
+/* Verifica que se pueda aplicar la funcion juicio_divino*/
 int condicion_aplicar_juicio(game_t* game, int indiceFilaHilo,int indiceColumnaHilo);
 
 /******************************************************************************/
