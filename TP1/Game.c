@@ -37,7 +37,7 @@ int mandato_vive(int vecinosVivos,int estadoActual);
 /* Avanza los indices del tablero para que eventualmente se otorguen las tareas a los dioses*/
 void avanzar_celula(game_t* game);
 
-/* Obtiene la cantidad de vecinos vivos y aplica el juicio*/
+/* Obtiene la cantidad de vecinos vivos y llama a aplicar juicio*/
 void juicio_divino(game_t* game,int row, int col);
 
 /* Aplica las reglas para el proximo estado de la celula en cuestion*/
@@ -51,10 +51,10 @@ void actualizar_tablero(game_t* game);
 /* Obtiene la cantidad de vecinos vivos que tiene la celula en la posicion (row,col) del tablero*/
 int get_vecinos_vivos(game_t* game,int row, int col);
 
-/* Es el criterio de los dioses, buscan la informacion y llevan a cabo los ciclos que definen las siguientes generaciones*/
+/* Es el criterio de los dioses, busca la informacion y llevan a cabo los ciclos que definen las siguientes generaciones*/
 void* criterio_divino(void* arg);
 
-/* Modifica los estados de las celulas de acuerdo al patron actual*/
+/* Implementacion de algoritmo de ciclo*/
 void do_ciclo(game_t* game, int indiceFilaHilo, int indiceColumnaHilo);
 
 void chequear_fin_ciclo(game_t* game, int indiceFilaHilo,int indiceColumnaHilo);
