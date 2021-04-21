@@ -25,6 +25,11 @@ struct _board{
 /* Indica si una celula esta viva o no devolviendo 0 o 1 respectivamente*/
 int get_state(char val);
 
+/* Recibe la linea leida, el indice actual y un puntero a cant_indiceChar
+    en la primer componente terminara la cantidad de celdas consecutivas con un determinado valor
+    y la segunda devuelve el indice a donde se encuentra el valor que determina si es X o O*/
+int obtener_cantidad(char* str,int indice,int cant_indiceChar[2]);
+
 /******************************************************************************/
 
 /******************************************************************************/
@@ -81,14 +86,13 @@ int board_load(board_t *board, char *str,int row){
     int longitud = strlen(str);
     int cant_indiceChar[2];
     
-    //printf("longitud :%d",longitud);
     // Cargamos los datos en la fila row del tableroActual 
     // de board desde str
+
     for(int i = 0; i < longitud-1;){
 
         obtener_cantidad(str,i,cant_indiceChar);
         board_actual_set(board,row,columna,cant_indiceChar[0],str[cant_indiceChar[1]+i]);
-
         columna += cant_indiceChar[0];
         i+=cant_indiceChar[1]+1;
 
@@ -108,7 +112,7 @@ int board_load(board_t *board, char *str,int row){
 
 int board_init(board_t *board,char* filename){
     
-    int cantidadLetras = (board->cantColumnas)*2+2; // los pares NX y el final de linea \n\0
+    int cantidadLetras = 1024;
     char* linea=malloc(sizeof(char) * cantidadLetras);
     int fila=0;
     char finalLinea;
@@ -124,7 +128,7 @@ int board_init(board_t *board,char* filename){
 
     // Perdemos la primera linea, que ya la leimos 
     // (con 1024 caracteres leidos nos alcanza para que lea el \n de fin de linea)   
-    fgets(linea,1024,archivo);
+    fgets(linea,cantidadLetras,archivo);
 
     // Linea 0 del tableroActual de board
     fgets(linea,cantidadLetras,archivo); 

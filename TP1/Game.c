@@ -32,6 +32,7 @@ barrier_t* barrera;
 pthread_mutex_t lock;
 int actualizando = 0,terminoCiclo = 0;
 int indiceFila=0,indiceColumna=0;
+int generacion=0,pausarEntre=0,mostrar=0;
 
 /******************************************************************************/
 
@@ -191,6 +192,7 @@ void* criterio_divino(void* arg){
         pthread_mutex_unlock(&lock); 
                     
         barrier_wait(barrera); // Evita que se actualice mas de 1 vez
+
     }
 
     pthread_exit(EXIT_SUCCESS);
@@ -204,6 +206,22 @@ void* criterio_divino(void* arg){
 
 int congwayGoL(game_t *game, const int nuproc){
 
+    char resp;
+
+    printf("Si desea mostrar generaciones ingrese S, sino cualquier letra: ");
+    scanf(" %c",&resp);
+    if(resp == 'S' || resp == 's'){
+        mostrar = 1;
+    }
+
+
+    printf("Si desea pausar entre generaciones ingrese S, sino cualquier letra: ");
+    scanf(" %c",&resp);
+    if(resp == 'S' || resp == 's'){
+        pausarEntre = 1;
+    }
+
+    game_show(game);
     /* futuros hilos */
     pthread_t dios[nuproc];
 
@@ -253,10 +271,16 @@ int game_getCantColumnas(game_t* game){
 
 void game_show(game_t* game){
 
-    printf("\n------------------\n  Tablero actual \n------------------\n\n");
-    board_show(game->board);
-    sleep(1);
-    printf("\n");
+    if (mostrar){
+        printf("\n----------------------------\n  Tablero Generacion %d \n----------------------------\n\n",generacion);
+        board_show(game->board);
+
+        if (pausarEntre){
+            getchar();
+        }
+        printf("\n");
+    }
+    
 }
 
 int get_vecinos_vivos(game_t* game,int row, int col){
@@ -402,6 +426,8 @@ void actualizar_tablero(game_t* game){
 
 
         board_interchange(game->board);
+
+        generacion++;
 
         game_show(game);
 
