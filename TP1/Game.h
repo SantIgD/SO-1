@@ -15,13 +15,13 @@ typedef struct _game game_t;
 /* Creamos el objeto juego */
 game_t * game_create();
 
-/* Inicializamos el objeto juego */
+/* Inicializa el objeto juego */
 int game_init(game_t* game, char* filename);
 
-/* Cargamos el juego desde un archivo */
+/* Carga el juego desde un archivo */
 int game_load(game_t* game, char *filename);
 
-/* Guardamos el tablero 'board' en el archivo 'filename' */
+/* Guarda el juego en un archivo de salida */
 void game_writeBoard(game_t* game, char *filename);
 
 /* Simulamos el Juego de la Vida de Conway con tablero 'board' la cantidad de

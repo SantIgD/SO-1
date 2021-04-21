@@ -17,10 +17,10 @@ typedef struct _board board_t;
 /* Funciones sobre el tablero */
 /******************************************************************************/
 
-/* Creación del tablero */
+/* Crea el objeto tablero */
 board_t* board_create();
 
-/* Creación de celdas */
+/* Crea las celdas de una tablero */
 int board_cells_create(board_t* board,int row,int col);
 
 /* Lee de una lista de caracteres en formato RLE que codifican una fila del tablero  e
@@ -49,14 +49,13 @@ void board_interchange(board_t* board);
 /* Lee el tablero en la fila row y columna col */
 int board_get(board_t* board, int row, int col);
 
-/* Devuelve la cantidad de filas del board*/
+/* Devuelve la cantidad de filas del tablero*/
 int board_getCantFilas(board_t * board);
 
-/* Devuelve la cantidad de columnas del board*/
+/* Devuelve la cantidad de columnas del tablero*/
 int board_getCantColumnas(board_t * board);
 
-/* Función para mostrar el tablero */
-/* La función 'board_show' imprime el board.*/
+/* Función para mostrar el tablero (lo imprime)*/
 void board_show(board_t* board);
 
 /******************************************************************************/

@@ -4,6 +4,10 @@
 #include <string.h>
 
 
+/******************************************************************************/
+/* Implementación de la estructura _board */
+/******************************************************************************/
+
 struct _board{
 
     int** tableroActual;
@@ -13,12 +17,13 @@ struct _board{
 };
 
 /******************************************************************************/
+
+/******************************************************************************/
 /* Funciones Internas */
 /******************************************************************************/
 
 /* Indica si una celula esta viva o no devolviendo 0 o 1 respectivamente*/
 int get_state(char val);
-
 
 /******************************************************************************/
 
@@ -28,7 +33,7 @@ int get_state(char val);
 
 board_t* board_create(){
 
-    // Asignamos memoria a la estructura board.
+    // Asignamos memoria a la estructura _board.
     return malloc(sizeof(board_t));
 
 }
@@ -131,7 +136,7 @@ void board_write(board_t* board, char* filename){
     FILE* archivo = fopen(filename,"w");
 
     // Guardamos el tableroActual en el archivo
-    // cambiando los 1´s y 0´s por X´s y O´s
+    // cambiando los 1´s y 0´s por X´s y O´s respectivamente
     for(int i = 0; i < board->cantFilas; i++){
         
         for(int j = 0; j < board->cantColumnas; j++){
@@ -221,19 +226,24 @@ void board_interchange(board_t* board){
 /******************************************************************************/
 
 int board_get(board_t* board, int row, int col){
+
     return board->tableroActual[row][col];
 }
 
 int board_getCantFilas(board_t * board){
+
     return board->cantFilas;
 }
 
 int board_getCantColumnas(board_t * board){
+
     return board->cantColumnas;
 }
 
 void board_show(board_t* board){
 
+    // Imprimimos el tableroActual en pantalla
+    // cambiando los 1´s y 0´s por X´s y O´s respectivamente
     for(int i =0; i < board->cantFilas; i++){
 
         printf("   ");
