@@ -14,6 +14,7 @@ int main(int argc, char** argv){
         congwayGoL(juego,get_nprocs());
 
         game_writeBoard(juego,argv[1]);
+        
         game_destroy(juego);
     }
 

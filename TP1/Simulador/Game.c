@@ -116,8 +116,7 @@ int game_load(game_t* game, char *filename){
     fscanf(archivo, "%d %d %d",&game->ciclos,&filas,&columnas);
     fclose(archivo);
 
-    // Verificamos que la cantidad de ciclos, filas y columnas
-    // cumplan con cierta condición
+    // Verificamos que la cantidad de ciclos, filas y columnas no sean negativas.
     first_line_checker(game,filas,columnas);
 
     board_cells_create(game->board,filas,columnas);
@@ -220,9 +219,6 @@ int congwayGoL(game_t *game, const int nuproc){
     }
     }
 
-
-    
-
     game_show(game);
     /* futuros hilos */
     pthread_t dios[nuproc];
@@ -278,7 +274,8 @@ void game_show(game_t* game){
         board_show(game->board);
 
         if (pausarEntre){
-            getchar();
+            //getchar();
+            sleep(1);
         }
         printf("\n");
     }

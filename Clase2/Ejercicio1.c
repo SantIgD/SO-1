@@ -12,6 +12,7 @@ int main(int argc, char** argv){
         int tiempo = atoi(argv[2]);
         char* nombreArchivoFuente = argv[0];
         char* pathArchivoDestino = argv[1];
+        int execvOut;
 
         while (1){
             
@@ -21,7 +22,6 @@ int main(int argc, char** argv){
                 perror ("Ocurrio un error!");
             } else if (forkOut == 0){
                 
-                int execvOut;
                 
                 execvOut=execv(pathArchivoDestino,args);
             }else{

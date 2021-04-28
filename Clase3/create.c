@@ -21,6 +21,11 @@ int main(int argc, char** argv){
     /* Argumentos de los hilos */
     int args[NTHS];
 
+    char resp;
+    printf("Desea usar join? S/N: ");
+    scanf("%c",&resp);
+
+
     for (int i=0; i < NTHS; i++){
 
         args[i] = i;
@@ -38,7 +43,9 @@ int main(int argc, char** argv){
             }
     }
 
-    /* Esperamos a que todos los threads terminen */
+    if (resp == 'S' || resp == 's'){
+
+        /* Esperamos a que todos los threads terminen */
 
     for (int i =0; i<NTHS; i++){
 
@@ -51,6 +58,9 @@ int main(int argc, char** argv){
                 printf("Hilo [%d] termino\n",i);
             }
     }
+    }
+
+    
 
     printf("Listo, muy rico todo!\n");
 

@@ -50,8 +50,8 @@ int board_cells_create(board_t* board,int row,int col){
     board->cantFilas = row;
 
     // Asignamos memoria a tableroActual y tableroProxGen de board
-    board->tableroActual = malloc(sizeof(int*) * board->cantFilas );
-    board->tableroProxGen = malloc(sizeof(int*) * board->cantFilas );
+    board->tableroActual = malloc(sizeof(int*) * board->cantFilas);
+    board->tableroProxGen = malloc(sizeof(int*) * board->cantFilas);
 
     for (int i = 0; i < board->cantFilas; i++){
         board->tableroActual[i] = malloc(sizeof(int) * board->cantColumnas );
@@ -113,7 +113,7 @@ int board_load(board_t *board, char *str,int row){
 int board_init(board_t *board,char* filename){
     
     int cantidadLetras = 1024;
-    char* linea=malloc(sizeof(char) * cantidadLetras);
+    char* linea = malloc(sizeof(char) * cantidadLetras);
     int fila=0;
     char finalLinea;
 
@@ -151,6 +151,8 @@ int board_init(board_t *board,char* filename){
         perror("La semilla ingresada es incorrecta por cantidad de filas");
         exit(EXIT_FAILURE);
     }
+
+    free(linea);
         
 
     fclose(archivo);

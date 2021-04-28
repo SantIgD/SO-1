@@ -7,7 +7,7 @@
 
 
 int main (int argc, char** argv){
-  char *args = {"./HelloPid", NULL};
+  char *args[] = {"./HelloPid", NULL};
   int res = 0;
 
   printf("Hola soy programa %s con PID:%d\n", argv[0], getpid());
@@ -24,4 +24,7 @@ int main (int argc, char** argv){
   }
 
   return 0;
+
+
+  
 }

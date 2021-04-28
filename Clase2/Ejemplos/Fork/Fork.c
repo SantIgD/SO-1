@@ -10,7 +10,7 @@ int main(int argc, char **argv){
 
   /* | | */
   if (p < 0) {
-    perror(" Erro! ");
+    perror(" Error! ");
   }
   printf("\n[Proceso %d] ", getpid());
 
