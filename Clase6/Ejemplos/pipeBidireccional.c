@@ -1,89 +1,99 @@
+#include "pipeBidireccional.h"  
 #include <stdio.h> /* Print */
 #include <unistd.h> /* Read/Write + Fork */
 #include <assert.h>
 #include <stdlib.h>
-
+#include <string.h>
 #define BUFFER 1024
 
-int main(){
-  int fdLeeHijo[2],fdLeePadre[2];
-  int p;
+struct _pipe{  
   
-
-  /* Creación del pipe */
-  assert(! pipe(fdLeeHijo));
-  assert(! pipe(fdLeePadre));
-
-  /* Fork */
-  assert((p = fork()) >= 0);
+  int CtoP[2];
+  int PtoC[2];
+  char buffC[BUFFER];
+  char buffP[BUFFER];
+};
 
 
-  if (p == 0){ /* Child */
-    ssize_t rd;
-    char buffCSTDIN[BUFFER];
-    char buffC[BUFFER];
-    //char buffer[BUFFER] = "hola que tal";
+pipe_b* pipe_b_create(){
 
-    /* Cerramos el extremo de escritura del fd de lectura*/
-    close(fdLeeHijo[1]);
+  return malloc(sizeof(pipe_b));
 
-    /* Cerramos el extremo de lectura del fd de escritura*/
-    close(fdLeePadre[0]);
+}
 
-    
-    //read(0,buffCSTDIN, BUFFER);
+void pipe_b_init(pipe_b* pip){
 
-    /* Escribimos un mensaje al  padre*/
-    write(fdLeePadre[1],"[C] Hola pa!",12);
+  assert(! pipe(pip->CtoP));
+  assert(! pipe(pip->PtoC));
 
-    /* Leemos el mensaje del padre, bloqueante */
-    rd = read(fdLeeHijo[0], buffC, BUFFER);
-    buffC[rd] = 0;
+}
 
-    /* Printf cabeza */
-    printf("Llegó al hijo: >%s<\n", buffC);
+void pipe_b_child_write(pipe_b* pip, char* str){
+  
+  //str = strcat("[C]",str);
+  /* Escribimos un mensaje al  padre*/
+  write(pip->CtoP[1],str,strlen(str));
+}
 
-    /* Cerramos el extremo que falta */
-    close(fdLeeHijo[0]);
+void pipe_b_parent_write(pipe_b* pip, char* str){
 
-    /* Cerramos el extremo que falta */
-    close(fdLeePadre[1]);
+  //str = strcat("[P]",str);
 
-    exit(EXIT_SUCCESS);
+  /* Escribimos un mensaje al  hijo*/
+    write(pip->PtoC[1],str,strlen(str));
+}
 
-  } else { /* Parent */
-    char buffP[BUFFER];
-    char buffPSTDIN[BUFFER];
-    ssize_t rd;
+void pipe_b_parent_read(pipe_b* pip){
 
-    /* Cerramos el extremo de lectura del hijo*/
-    close(fdLeeHijo[0]);
-    /* Cerramos el extremo de escritura del Padre*/
-    close(fdLeePadre[1]);
+  ssize_t rd;
+/* Leemos el mensaje del padre, bloqueante */
+  rd = read(pip->CtoP[0], pip->buffC, BUFFER);
+  pip->buffC[rd] = 0;
 
+  /* Printf cabeza */
+  printf("Llegó al padre: >%s<\n", pip->buffC);
 
-    //read(0, buffPSTDIN, BUFFER);
+}
 
+void pipe_b_child_read(pipe_b* pip){
+  
+  ssize_t rd;
+  /* Leemos el mensaje del padre, bloqueante */
+  rd = read(pip->PtoC[0], pip->buffP, BUFFER);
+  pip->buffP[rd] = 0;
 
+  /* Printf cabeza */
+  printf("Llegó al hijo: >%s<\n", pip->buffP);
 
-    /* Escribimos un mensaje al  */
-    write(fdLeeHijo[1],"[P] Hola hijo, ¿Como estas?",28);
+}
 
-    /* Leemos el mensaje del hijo, bloqueante */
-    rd = read(fdLeePadre[0], buffP, BUFFER);
-    buffP[rd] = 0;
+void pipe_b_parent_close_end(pipe_b* pip){
 
-    /* Printf cabeza */
-    printf("Llegó al padre: >%s<\n", buffP);
+ 
+  /* Cerramos el extremo de escritura del fd de lectura del parent*/
+  close(pip->PtoC[1]);
+}
 
+void pipe_b_child_close_end(pipe_b* pip){
 
-    /* Cerramos el extremo que falta */
-    close(fdLeeHijo[1]);
-    close(fdLeePadre[0]);
+     /* Cerramos el extremo de escritura del fd de escritura del child*/
+    close(pip->CtoP[1]);
+}
 
-    exit(EXIT_SUCCESS);
-  }
+void pipe_b_close_begin_child(pipe_b* pip){
 
-  /* Código muerto */
-  exit(EXIT_SUCCESS);
+  /* Cerramos el extremo de lectura del fd de escritura del child*/
+  close(pip->CtoP[0]);
+
+}
+
+void pipe_b_close_begin_parent(pipe_b* pip){
+
+  /* Cerramos el extremo de lectura del fd de lectura del parent*/
+  close(pip->PtoC[0]);
+
+}
+
+void pipe_b_destroy(pipe_b* pipe){
+  free(pipe);
 }
