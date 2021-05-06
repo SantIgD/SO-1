@@ -13,32 +13,42 @@ int main(int argc, char* argv[]){
     int fd[2];
     
 
-    if (argc == 3){
+    if (3 == 3){
 
-        char *args[] = {"./HelloPid", NULL};
+        assert(! pipe(fd));
+        char *args1[] = {"./escritura_s", NULL};
+        char *args2[] = {"./lectura_s", NULL};
         int state;
         
-            
-        assert(! pipe(fd));
+            // /proc/pid/fd
+        
         assert((p = fork()) >= 0);
         
         switch (p){
             
             case  CHILD:{
-                
+                close(fd[0]);
                 /* Aqui prog1*/
 
-                execv(argv[1],args);
+                dup2(fd[1],STDOUT_FILENO);
+                /*
+                    old fd[0]
+                    new STDOUT_FILENO 
+                    old<-new
+                
+                */
+                execv(args1[0],args1);
                 break;
             }
 
             default:{ /* Parent */
-
+                close(fd[1]);
                 /* Aqui prog2*/
-                wait(&state);
+                //wait(&state);
 
-                dup2(0,1);
-                execv(argv[2],args);
+                
+                dup2(fd[0],STDIN_FILENO);
+                execv(args2[0],args2);
 
                 break;
             }                                    
