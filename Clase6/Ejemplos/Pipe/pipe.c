@@ -3,12 +3,12 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define BUFFER 1024
+#define BUFFSIZE 1024
 
 int main(){
   int fd[2];
   int p;
-  char buffer[BUFFER] = "hola que tal";
+  char buffer[BUFFSIZE] = "hola que tal";
 
   /* Creación del pipe */
   assert(! pipe(fd));
@@ -31,7 +31,7 @@ int main(){
     close(fd[1]);
 
     /* Leemos el mensaje, bloqueante */
-    rd = read(fd[0], buffer, BUFFER);
+    rd = read(fd[0], buffer, BUFFSIZE);
     buffer[rd] = 0;
 
     /* Printf cabeza */
@@ -43,7 +43,7 @@ int main(){
     exit(EXIT_SUCCESS);
 
   } else { /* Parent */
-    char buffP[BUFFER];
+    char buffP[BUFFSIZE];
     /* Cerramos el extremo de lectura */
     close(fd[0]);
 
@@ -51,7 +51,7 @@ int main(){
     /*   printf("Parent \n"); */
     /*   sleep(1); */
     /* } */
-    read(0, buffP, BUFFER);
+    read(0, buffP, BUFFSIZE);
 
     /* Código muerto */
 

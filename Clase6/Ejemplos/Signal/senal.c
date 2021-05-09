@@ -20,10 +20,9 @@ void handler(int arg){
 int main(){
 
   /* Cambiar el comportamiendo de una señal  */
-  signal(SIGTERM, handler);
+  signal(SIGINT, handler);
 
   while(1){
-    
     printf("Holis\n");
     sleep(1);
   }

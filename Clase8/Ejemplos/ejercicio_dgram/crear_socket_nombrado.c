@@ -10,10 +10,12 @@
 int archivoCreado = 0;
 
 
-
-
 int crear_socket_nombrado(const char * archivo){
+
+  /* Variable donde se va a almacenar la representacion del socket como fd*/
   int sock;
+
+  /* Estructura para darle una direccion con nombre al socket*/
   struct sockaddr_un nombre;
   socklen_t size;
 
@@ -26,8 +28,8 @@ int crear_socket_nombrado(const char * archivo){
   }
 
   /* Creamos la estructura de la dirección del socket */
-  nombre.sun_family = AF_UNIX;
-  strncpy(nombre.sun_path, archivo, sizeof(nombre.sun_path));
+  nombre.sun_family = AF_UNIX; // modo local
+  strncpy(nombre.sun_path, archivo, sizeof(nombre.sun_path)); // nombramos al socket como archivo
   size = sizeof(nombre);
 
   /* Asignación del nombre */
