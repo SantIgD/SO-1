@@ -84,6 +84,7 @@ int main(int argc, char **argv){
     
     clientes[clientesConectados]=*soclient;
     argumentos[clientesConectados] = clientesConectados;
+    
     /* Le enviamos el socket al hijo*/
     pthread_create(&thread , NULL , child, (void *) &argumentos[clientesConectados]);
 
@@ -114,6 +115,7 @@ void * child(void *_arg){
   /* Recibimos Nombre de usuario */
   recv(sock, buf, sizeof(buf), 0);
 
+  
 
 
   strncpy(nickname,buf,sizeof(nickname));
@@ -122,15 +124,20 @@ void * child(void *_arg){
   strncat(nickname," >> ",sizeof(" >> "));
 
   //int lenNicknickname=sizeof(nickname)
-  
+  strcpy(auxiliar,"");
+
+  printf("[Nickname] %s\n",nickname);
+
   while(1){
 
     /* Esperamos mensaje */
     recv(sock, buf, sizeof(buf), 0);
 
+    printf("[Mensaje] >%s<\n",buf);
     strncat(auxiliar,nickname,sizeof(nickname));
     strncat(auxiliar,buf,sizeof(buf));
 
+    printf("[Mensaje] >%s<\n",auxiliar);
 
     pthread_mutex_lock(&candado);
     for(int i = 0; i < clientesConectados; i++){

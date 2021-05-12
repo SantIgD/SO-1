@@ -12,6 +12,12 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
+
+
+char nombre[50];
+char ip[100];
+char puerto[100];
 
 /*
   El archivo describe un sencillo cliente que se conecta al servidor establecido
@@ -23,25 +29,17 @@ void error(char *msg){
   exit((perror(msg), 1));
 }
 
-int main(int argc, char **argv){
+int conectar_socket_red(char* ip,char* puerto,struct addrinfo* resultado){
   int sock;
-  char buf[1024];
-  struct addrinfo *resultado;
-  ssize_t bytes;
 
-  /*Chequeamos mínimamente que los argumentos fueron pasados*/
-  if(argc != 4){
-    fprintf(stderr,"El uso es \'%s IP port\'", argv[0]);
-    exit(1);
-  }
 
   /* Inicializamos el socket */
   if( (sock = socket(AF_INET , SOCK_STREAM, 0)) < 0 )
     error("No se pudo iniciar el socket");
 
   /* Buscamos la dirección del hostname:port */
-  if (getaddrinfo(argv[1], argv[2], NULL, &resultado)){
-    fprintf(stderr,"No se encontro el host: %s \n",argv[1]);
+  if (getaddrinfo(ip, puerto, NULL, &resultado)){
+    fprintf(stderr,"No se encontro el host: %s \n",ip);
     exit(2);
   }
 
@@ -49,25 +47,93 @@ int main(int argc, char **argv){
     /* if(connect(sock, (struct sockaddr *) &servidor, sizeof(servidor)) != 0) */
     error("No se pudo conectar :(. ");
 
-  printf("La conexión fue un éxito!\n");
 
-  
-  bytes = recv(sock, buf, sizeof(buf),0);
 
-  buf[bytes] = '\0';
-    
-  printf("[Server] >%s<\n", buf);
+  return sock;
+}
 
-  /* Respondemos con nuestro PONG! */
-  send(sock, argv[3], sizeof(argv[3]),0);
-  
-   
+void* escribir(void * arg){
 
- /*Empezamos la comunicacion en el chat*/
-  /* bucle infinito*/
+  int sock = *(int *) arg;
+  char buf[1024];
+  ssize_t bytes;
+
+  /* Respondemos con nuestro Nombre! */
+  send(sock, nombre, sizeof(nombre),0);
+
   while(1){
 
-    scanf(" %s",buf);
+    scanf(" %[^\n]s",buf);
+    printf("[Envio] >%s<\n",buf);
+    send(sock,buf,sizeof(buf),0);
+
+  }
+
+
+}
+
+void* recibir (void * arg){
+
+  int sock = *(int *) arg;
+  char buf[1024];
+  ssize_t bytes;
+
+
+  printf("[Cliente Lectura] La conexión fue un éxito!\n");
+
+
+  while(1){
+
+    bytes = recv(sock, buf, sizeof(buf),0);
+
+    buf[bytes] = '\0';
+    
+    printf("%s\n", buf);
+  }
+
+}
+
+int main(int argc, char **argv){
+
+  char buf[1024];
+  int sock;
+  ssize_t bytes;
+  struct addrinfo *resultado;
+
+  pthread_t clienteEscribir, clienteRecibir;
+
+
+  /*Chequeamos mínimamente que los argumentos fueron pasados*/
+  if(argc != 4){
+    fprintf(stderr,"El uso es \'%s IP port\'", argv[0]);
+    exit(1);
+  }
+
+
+  strncpy(nombre,argv[3],sizeof(nombre));
+  strncpy(ip,argv[1],sizeof(ip));
+  strncpy(puerto,argv[2],sizeof(puerto));
+
+  sock = conectar_socket_red(ip,puerto,resultado);
+
+  printf("Se conecto con el server pa\n");
+
+/*
+  bytes = recv(sock, buf, sizeof(buf),0);
+
+  buf[bytes]='\0';
+  printf("[Server] >%s<\n",buf);
+
+
+  scanf(" %[^\n]s",buf);
+  send(sock,buf,sizeof(buf),0);
+  
+  while(1){
+    
+    
+    scanf(" %[^\n]s",buf);
+
+    printf("[Envio] >%s<\n",buf);
     send(sock,buf,sizeof(buf),0);
 
     bytes = recv(sock, buf, sizeof(buf),0);
@@ -77,7 +143,21 @@ int main(int argc, char **argv){
     printf("%s\n", buf);
   }
 
-  /* Cerramos :D!*/
+
+  */
+  
+  pthread_create(&clienteEscribir , NULL , escribir, (void*) &sock);
+  getchar();
+  pthread_create(&clienteRecibir , NULL , recibir,(void*) &sock);
+
+ /*Empezamos la comunicacion en el chat*/
+  /* bucle infinito*/
+  
+  
+  pthread_join(clienteRecibir,NULL);
+  pthread_join(clienteEscribir,NULL);
+
+   /* Cerramos :D!*/
   freeaddrinfo(resultado);
   close(sock);
 
