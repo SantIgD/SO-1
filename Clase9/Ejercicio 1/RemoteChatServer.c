@@ -31,6 +31,24 @@ void *child(void *arg);
 /* Definimos una pequeña función auxiliar de error */
 void error(char *msg);
 
+int crear_inicializar_socket(int sock, struct sockaddr_in servidor, int puerto){
+
+   /* Creamos el socket */
+  if( (sock = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+    error("Socket Init");
+
+  /* Creamos a la dirección del servidor.*/
+  servidor.sin_family = AF_INET; /* Internet */
+  servidor.sin_addr.s_addr = INADDR_ANY; /**/
+  servidor.sin_port = puerto;
+
+  /* Inicializamos el socket */
+  if (bind(sock, (struct sockaddr *) &servidor, sizeof(servidor)))
+    error("Error en el bind");
+
+  return sock;
+}
+
 int main(int argc, char **argv){
   int sock, *soclient;
   struct sockaddr_in servidor, clientedir;
@@ -42,19 +60,8 @@ int main(int argc, char **argv){
 
   if (argc <= 1) error("Faltan argumentos");
 
-  /* Creamos el socket */
-  if( (sock = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
-    error("Socket Init");
-
-  /* Creamos a la dirección del servidor.*/
-  servidor.sin_family = AF_INET; /* Internet */
-  servidor.sin_addr.s_addr = INADDR_ANY; /**/
-  servidor.sin_port = htons(atoi(argv[1]));
-
-  /* Inicializamos el socket */
-  if (bind(sock, (struct sockaddr *) &servidor, sizeof(servidor)))
-    error("Error en el bind");
-
+  sock = crear_inicializar_socket(sock,servidor,htons(atoi(argv[1])));
+ 
   printf("Binding successful, and listening on %s\n",argv[1]);
 
   /************************************************************/
@@ -110,13 +117,8 @@ void * child(void *_arg){
   int sock = clientes[indiceSockClient];
 
 
-  /* Pedimos nombre de usuario */
-  send(sock, "Ingrese Nickname", sizeof("Ingrese Nickname"), 0);
   /* Recibimos Nombre de usuario */
   recv(sock, buf, sizeof(buf), 0);
-
-  
-
 
   strncpy(nickname,buf,sizeof(nickname));
 
@@ -133,11 +135,10 @@ void * child(void *_arg){
     /* Esperamos mensaje */
     recv(sock, buf, sizeof(buf), 0);
 
-    printf("[Mensaje] >%s<\n",buf);
+    
     strncat(auxiliar,nickname,sizeof(nickname));
     strncat(auxiliar,buf,sizeof(buf));
 
-    printf("[Mensaje] >%s<\n",auxiliar);
 
     pthread_mutex_lock(&candado);
     for(int i = 0; i < clientesConectados; i++){
