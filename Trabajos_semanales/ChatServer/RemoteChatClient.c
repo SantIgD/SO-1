@@ -17,19 +17,14 @@
 
 
 #define MAXSIZEMSG 1024
-char ip[100];
-char puerto[100];
+#define MAXIP 25
+#define MAXPORT 10
+
+char ip[MAXIP];
+char puerto[MAXPORT];
 int sock;
 struct addrinfo *resultado;
 int estado=-1;
-int bandera=0;
-
-/*
-  El archivo describe un sencillo cliente que se conecta al servidor establecido
-  en el archivo RemoteServer.c. Se utiliza de la siguiente manera:
-  $cliente IP port
- */
-
 
 /*Printea error con el mensaje msg por pantalla*/
 void error(char *msg);
@@ -52,45 +47,32 @@ void* escribir(void * arg);
 /* Hilo para recibir mensajes del servidor */
 void* recibir (void * arg);
 
-void upload_data(char* argv[]){
+/* Carga los argumentos recibidos por entrada estandar a variables globales*/
+void upload_data(char* argv[]);
 
-  strncpy(ip,argv[1],sizeof(ip)+1);
-  strncpy(puerto,argv[2],sizeof(puerto));
-
-}
+/* Creacion/Join de hilos */
+void hilos();
 
 int main(int argc, char **argv){
-
-  pthread_t clienteEscribir, clienteRecibir;
 
   //Chequeamos mínimamente que los argumentos fueron pasados/
   
   if(argc != 3){
-    fprintf(stderr,"La cantidad de argumentos no es correcta.\n");  
-    fprintf(stderr,"El uso es \'%s IP port\'", argv[0]);
+    fprintf(stderr,"La cantidad de argumentos no es correcta.\n");
+    fprintf(stderr,"El uso es \'%s IP port\'", argv[0]);  
     exit(1);
   }
   
   signal(SIGINT, handler);
   signal(SIGTERM, handler);
   
-  //Cargamos los datos necesarios/
   upload_data(argv);
-    
-  //Conectamos con el server/    
+       
   sock = conectar_socket_red();
 
   printf("Se ha podido establecer conexion con el server %s:%s\n",ip,puerto);
   
-  pthread_create(&clienteEscribir , NULL , escribir, (void*) &sock);
-  pthread_create(&clienteRecibir , NULL , recibir,(void*) &sock);
-
- //Empezamos la comunicacion en el chat/
-  /* bucle infinito*/
-  
-  
-  pthread_join(clienteRecibir,NULL);
-  pthread_join(clienteEscribir,NULL);
+  hilos();
 
    /* Cerramos :D!*/
   freeaddrinfo(resultado);
@@ -99,6 +81,42 @@ int main(int argc, char **argv){
   return 0;
 }
 
+
+void* escribir(void * arg){
+
+  int sock = *(int *) arg;
+  char buf[MAXSIZEMSG];
+  ssize_t bytes;
+
+  while(1){
+
+    scanf(" %[^\n]s",buf);
+    send(sock,buf,sizeof(buf),0);
+
+  }
+
+}
+
+void* recibir (void * arg){
+
+  int sock = *(int *) arg;
+  char buf[MAXSIZEMSG];
+  ssize_t bytes;
+
+
+  while(1){
+
+    bytes = recv(sock, buf, sizeof(buf),0);
+    
+    if(strcmp(buf,"OK") == 0)
+      cerrar_cliente();
+      
+    buf[bytes] = '\0';
+    
+    printf("%s\n", buf);
+  }
+
+}
 
 void error(char *msg){
   exit((perror(msg), 1));
@@ -118,8 +136,10 @@ void cerrar_cliente(){
 }
 
 void handler(int arg){
-    cerrar_cliente();
+  char buf[MAXSIZEMSG]="/exit";
+  send(sock,buf,sizeof(buf),0);
 }
+
 
 int verificar_opcion(char buf[MAXSIZEMSG]){
     char aux[15]="";
@@ -157,47 +177,29 @@ int conectar_socket_red(){
   }
 
   estado++; 
-  if(connect(socksrv, (struct sockaddr *) resultado->ai_addr, resultado->ai_addrlen) != 0)
-    /* if(connect(sock, (struct sockaddr *) &servidor, sizeof(servidor)) != 0) */
+  if(connect(socksrv, (struct sockaddr *) resultado->ai_addr, resultado->ai_addrlen) != 0){
     cerrar_cliente();
     error("No se pudo conectar con el server :(. ");
+  }
 
   return socksrv;
 }
 
-void* escribir(void * arg){
+void upload_data(char* argv[]){
 
-  int sock = *(int *) arg;
-  char buf[MAXSIZEMSG];
-  ssize_t bytes;
-
-  while(1){
-
-    scanf(" %[^\n]s",buf);
-    send(sock,buf,sizeof(buf),0);
-    /*Verificamos si el cliente se quiere desconectar del server*/
-    if(verificar_opcion(buf)==0){
-        bandera++;
-    }
-
-  }
+  strncpy(ip,argv[1],sizeof(ip)+1);
+  strncpy(puerto,argv[2],sizeof(puerto));
 
 }
 
-void* recibir (void * arg){
+void hilos(){
 
-  int sock = *(int *) arg;
-  char buf[MAXSIZEMSG];
-  ssize_t bytes;
+  pthread_t clienteEscribir, clienteRecibir;
 
-
-  while(1){
-
-    bytes = recv(sock, buf, sizeof(buf),0);
-
-    buf[bytes] = '\0';
-    
-    printf("%s\n", buf);
-  }
+  pthread_create(&clienteEscribir , NULL , escribir, (void*) &sock);
+  pthread_create(&clienteRecibir , NULL , recibir,(void*) &sock);
+  
+  pthread_join(clienteRecibir,NULL);
+  pthread_join(clienteEscribir,NULL);
 
 }
