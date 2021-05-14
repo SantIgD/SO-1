@@ -125,36 +125,49 @@ int main(int argc, char **argv){
 }
 
 int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]){
-    int i,cont=0;
+    int i=0,cont=0;
+    printf("el I = %d\n",i);
     for(;buf[i]!=' ' && buf[i]!='\n';i++);
 
-    i++;
 
+    i++;
+    printf("el I = %d\n",i);
     for(;buf[i]!=' ' && buf[i]!='\n' ;i++){
-        nicknamePrivado[i]=buf[i];
+        nicknamePrivado[cont]=buf[i];
+        printf("el I = %d\n",i);
+        printf("el nick [%s] char [%c]",nicknamePrivado,buf[i]);
         cont++;
     }
-
     return cont;
 }
 
-/*
+
 void mensaje_privado(char buf[BSIZE]){
     //Hacer control de errores de mnsages y nicknames
     char nicknamePrivado[BSIZE]="";
-    //int lenNickname=obtener_nickname(nicknamePrivado,buf,1);
-    if(lenNickname>0){
-        int indice=indice_nickname(nicknamePrivado);
-        int sock=clientes[indice];
-        //char mensaje[BSIZE]=obtener_mensaje(buf,);
-    }
-    else{
-        //Hagop algo
-        
-    }
+
+    int lenNickname=obtener_nickname(nicknamePrivado,buf);
+    printf("el nick [%s]",nicknamePrivado);
     
+    for(int i=0;i<clientesConectados;i++)
+        printf("nick-%d = %s\n",i,nicknames[i]);
+    int indice=indice_nickname(nicknamePrivado);
+    printf("hola msg/ %d /\n",indice);
+    int sock=clientes[indice];
+    char buffer[BSIZE];
+    
+    printf("hola msg/ %d /",indice);
+    if(indice!=-1){
+        strcpy(buffer,nicknamePrivado);
+        strncat(buffer," >> ",sizeof(" >> "));
+        strcat(buffer,buf);
+        send(sock,buffer,strlen(buf), 0);
+    }    
+    else{
+        send(sock,"No se ha encontrado ese nickname",sizeof("No se ha encontrado ese nickname"), 0);
+    }
 }
-*/
+
 
 void cambiar_nickname(int sock,char buf[BSIZE]){
     
@@ -194,7 +207,8 @@ void ejecutar_operacion(int sock,char buf[BSIZE], int operacion,char nickname[BS
 
         case PRIVADO:
         {
-            //mensaje_privado(buf);
+            printf("ENtro aca cheee\n");
+            mensaje_privado(buf);
             break;
         }
 
@@ -293,6 +307,7 @@ int indice_nickname(char nickname[BSIZE]){
     int longitud = clientesConectados;//cambiar por cantCli8entes??????
     int rest = DISPONIBLE;
     for(int i = 0;i<longitud && rest==-1 ;i++){
+        printf("|%s|%s|%d\n",nicknames[i],nickname,strcmp(nicknames[i],nickname));
         if(strcmp(nicknames[i],nickname)== 0)
             rest=i;
     }
@@ -316,7 +331,7 @@ int verificar_operacion(char buf[BSIZE]){
         else if(strcmp(aux,"/nickname")==0){
             ret=2;
         }
-    }    
+    }
     return ret;    
 }
 
