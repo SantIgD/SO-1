@@ -59,10 +59,12 @@ int crear_inicializar_socket(int sock, struct sockaddr_in servidor, int puerto);
 int is_nickname_disponible(char* nickname);
 
 /* Ejecuta la operacion recibida */
-int ejecutar_operacion(int indiceSockClient, char* buff, int operacion);
+void ejecutar_operacion(int sock,char buf[BSIZE], int operacion,char nickname[BSIZE]);
 
 /* Interpreta y acciona apartir del mensaje recibido*/
-void procesar_mensaje(int indiceSockClient,char* buff);
+void procesar_mensaje(int sock,char buff[BSIZE],char nickname[BSIZE]);
+
+int verificar_operacion(char buf[BSIZE]);
 
 int main(int argc, char **argv){
 
@@ -71,7 +73,7 @@ int main(int argc, char **argv){
   socklen_t clientelen;
   pthread_t thread;
   pthread_attr_t attr;
-  int argumentos[MAX_CLIENTS];
+  //int argumentos[MAX_CLIENTS];
   
   if (argc != 2) error("Faltan argumentos");
 
@@ -106,10 +108,10 @@ int main(int argc, char **argv){
       error("No se puedo aceptar la conexión. ");
     
     clientes[clientesConectados] = *soclient;
-    argumentos[clientesConectados] = clientesConectados;
+    //argumentos[clientesConectados] = clientesConectados;
     
     /* Le enviamos el socket al hijo*/
-    pthread_create(&thread , &attr , moderador, (void *) &argumentos[clientesConectados]);
+    pthread_create(&thread , &attr , moderador, (void *) &clientes[clientesConectados]);
 
     
 
@@ -136,22 +138,23 @@ int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]){
     return cont;
 }
 
-
+/*
 void mensaje_privado(char buf[BSIZE]){
-    /*Hacer control de errores de mnsages y nicknames*/
+    //Hacer control de errores de mnsages y nicknames
     char nicknamePrivado[BSIZE]="";
-    int lenNickname=obtener_nickname(nicknamePrivado,buf,1);
+    //int lenNickname=obtener_nickname(nicknamePrivado,buf,1);
     if(lenNickname>0){
         int indice=indice_nickname(nicknamePrivado);
         int sock=clientes[indice];
         //char mensaje[BSIZE]=obtener_mensaje(buf,);
     }
     else{
-        /*Hagop algo*/
+        //Hagop algo
         
     }
     
 }
+*/
 
 void cambiar_nickname(int sock,char buf[BSIZE]){
     
@@ -162,84 +165,72 @@ void cambiar_nickname(int sock,char buf[BSIZE]){
 void send_all(char buf[BSIZE]){
     
     for(int i=0;i<clientesConectados;i++)
-      send(clientes[i],buf,sizeof(buf), 0);
+      send(clientes[i],buf,strlen(buf), 0);
 
 }
 
-void mensaje_all(char buf[BSIZE],int indiceSockClient){
+void mensaje_all(char buf[BSIZE],int sock,char nickname[BSIZE]){
   char buffer[BSIZE];
   
- 
-  strcpy(buffer,nicknames[indice_nickname]);
+  
+  strcpy(buffer,nickname);
   strncat(buffer," >> ",sizeof(" >> "));
   strcat(buffer,buf);
-    
-  pthread_mutex_lock(&candado);  
-  send_all(buffer)
-  pthread_mutex_unlock(&candado);  
-  
+  send_all(buffer);
+
 }
 
 
-int ejecutar_operacion(int indiceSockClient, char* buff, int operacion){
+void ejecutar_operacion(int sock,char buf[BSIZE], int operacion,char nickname[BSIZE]){
     
 
     switch(operacion){
 
         case DESCONECTAR:
         {
-            desconectar_cliente(indiceSockClient);
+            //desconectar_cliente(indiceSockClient);
             break;
         }
 
         case PRIVADO:
         {
-            mensaje_privado(buf);
+            //mensaje_privado(buf);
             break;
         }
 
         case ALL:
         {
-            mensaje_all(buf,indiceSockClient);
+            mensaje_all(buf,sock,nickname);
             break;
         }
-        case NUEVONICK
+        case NUEVONICK:
         {
         
             break;
         }
     }
-    
-    if(ret==1){
-        mensaje_privado(buf);
-    }
-    else if(ret==2){
-        cambiar_nickname(sock,buf);   
-    }
-    else if(ret==3){
-        send(sock ,"Comando no valido",sizeof("Comando no valido"), 0);
-    }
-    
-    return ret;
+
 }
 
-void procesar_mensaje(int indiceSockClient,char* buff){
+void procesar_mensaje(int sock,char buff[BSIZE],char nickname[BSIZE]){
 
     int op = verificar_operacion(buff);
-
-    ejecutar_operacion(indiceSockClient,buf,op);
+    
+    
+    pthread_mutex_lock(&candado);
+    ejecutar_operacion(sock,buff,op,nickname);
+    pthread_mutex_unlock(&candado);
     
 }
 
 /*
 */
 void * moderador(void *_arg){
-  int indiceSockClient = *(int*) _arg;
+  int sock = *(int*) _arg;
   char buf[BSIZE];
   char nickname[BSIZE];
   char auxiliar[BSIZE];
-  int sock = clientes[indiceSockClient];
-
+      
   
   /*Pedimos un nickname al cliente*/
   send(sock , "Ingrese su nickname",sizeof("Ingrese su nickname"), 0);
@@ -259,39 +250,28 @@ void * moderador(void *_arg){
       
         recv(sock, nickname, sizeof(nickname), 0);
         
-        procesar_mensaje(sock,nickname);
+        //procesar_mensaje(sock,nickname,nickname);
 
         pthread_mutex_lock(&candado);
         
   }    
 
+  
+  strcpy(nicknames[clientesConectados],nickname);
   clientesConectados++;
-
-  strcpy(nicknames[indiceSockClient],nickname);
   pthread_mutex_unlock(&candado);    
   
   strcpy(buf,"Tu nickname en el servidor es : ");
   strcat(buf,nickname);
   send(sock , buf,sizeof(buf), 0);
 
-
-
-  /*Ajustamos el propmt del nickname*/
-  /*
-  strncat(nickname," >> ",sizeof(" >> "));
-
-  strcpy(auxiliar,"");
-
-  printf("[Nickname] %s\n",nickname);
-*/
-  
   while(1){
 
     /* Esperamos mensaje */
     recv(sock, buf, sizeof(buf), 0);
 
-    procesar_mensaje(indiceSockClient,buf);
     
+    procesar_mensaje(sock,buf,nickname);
   }
   
 
@@ -310,7 +290,7 @@ void error(char *msg){
 
 
 int indice_nickname(char nickname[BSIZE]){
-    int longitud = MAX_CLIENTS;//cambiar por cantCli8entes??????
+    int longitud = clientesConectados;//cambiar por cantCli8entes??????
     int rest = DISPONIBLE;
     for(int i = 0;i<longitud && rest==-1 ;i++){
         if(strcmp(nicknames[i],nickname)== 0)
