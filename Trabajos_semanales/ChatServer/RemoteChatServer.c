@@ -278,29 +278,29 @@ int mensaje_privado(int sock,char buf[BSIZE],char nickname[BSIZE]){
 
 int cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
     
-    char aux[BSIZE];
-    char aux2[BSIZE];
+    char nuevoNickName[BSIZE];
+    char msg[BSIZE];
 
     int lenNickname,ret=-1;
 
-    if (obtener_nickname(aux,buf) != -1){
+    if (obtener_nickname(nuevoNickName,buf) != -1){
 
-        lenNickname = sizeof(aux);
-        int indice,longitudMinima=11; 
+        lenNickname = sizeof(nuevoNickName);
+        int indice; 
 
-        if(lenNickname > 0 ){
+        if(lenNickname > 0){
 
-            if (indice_nickname(aux) == -1 ){
+            if (is_nickname_disponible(nuevoNickName) == DISPONIBLE ){
 
                 indice = indice_nickname(nickname);
 
-                strcpy(nicknames[indice],aux);
-                strcpy(nickname,aux);
+                strcpy(nicknames[indice],nuevoNickName);
+                strcpy(nickname,nuevoNickName);
                 
                 
-                strcat(aux2,NICKNAME_NUEVO_OTORGADO);
-                strcat(aux2,aux);
-                send(sock,aux2,sizeof(aux2), 0);
+                strcat(msg,NICKNAME_NUEVO_OTORGADO);
+                strcat(msg,nuevoNickName);
+                send(sock,msg,sizeof(msg), 0);
 
                 ret = 0;
             }
@@ -339,9 +339,10 @@ void mensaje_all(char buf[BSIZE],char nickname[BSIZE]){
 void clientes_fix_array(char nickname[BSIZE]){
 
     int indice = indice_nickname(nickname);
-    int indiceUltimo = clientesConectados--;
+    clientesConectados--;
+    int indiceUltimo = clientesConectados;
 
-    printf("clientes %d /%d/ salio %s/reemplazo %s\n",clientesConectados,indice,nicknames[indice],nicknames[clientesConectados]);
+    printf("clientes[%d] %s se desconecta,\nclientes[%d] %s reemplazo su lugar\n",indice,nicknames[indice],indiceUltimo,nicknames[indiceUltimo]);
     
 
     if (indice != indiceUltimo){
@@ -355,7 +356,7 @@ void clientes_fix_array(char nickname[BSIZE]){
 int desconectar_cliente(int sock,char nickname[BSIZE]){
 
     clientes_fix_array(nickname);
-    imprimir_nicknames();
+    //imprimir_nicknames();
     send(sock,EXITMSG,sizeof(EXITMSG), 0);
     return 0;
 
@@ -413,7 +414,7 @@ void error(char *msg){
 }
 
 int indice_nickname(char nickname[BSIZE]){
-    int longitud = clientesConectados;//cambiar por cantCli8entes??????
+    int longitud = clientesConectados;
     int ret = DISPONIBLE;
 
     for(int i = 0; i < longitud && ret == -1 ;i++){
