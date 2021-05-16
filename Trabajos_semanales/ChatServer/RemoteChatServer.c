@@ -36,7 +36,8 @@ servidor */
 #define NICKNAME_REQUEST "[ChatServer] Ingrese su nickname"
 
 #define ERROR_MENSAJE_PRIVADO1 "[ChatServer] El nickname ingresado no coincide con ningun usuario conectado"
-#define ERROR_MENSAJE_PRIVADO2 "[ChatServer] Falta el destinatario" 
+#define ERROR_MENSAJE_PRIVADO2 "[ChatServer] Falta el destinatario"
+#define ERROR_MENSAJE_PRIVADO3 "[ChatServer] Falta el mensaje" 
 
 #define ERROR_CAMBIO_NICKNAME "[ChatServer] Falta ingresar el nuevo nickname"
 /* Tamaño del buffer */
@@ -80,6 +81,11 @@ int verificar_operacion(char buf[BSIZE]);
 
 void imprimir_nicknames();
 
+/* Obtiene el nickname del mensaje recibido por el cliente, tanto en nuevo nick como en privado*/
+int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]);
+
+/* Obtiene el mensaje a enviar por privado*/
+int obtener_mensaje(char buffer[BSIZE],char buf[BSIZE]);
 
 int main(int argc, char **argv){
 
@@ -157,7 +163,7 @@ int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]){
 
     }
 
-    if (token == NULL){
+    if (cont < 2){
         ret = -1; // No habia nickname
     }
 
@@ -216,27 +222,27 @@ int mensaje_privado(int sock,char buf[BSIZE],char nickname[BSIZE]){
 
     if (obtener_nickname (nicknamePrivado,aux2) == -1){
 
-        send(sock,"Error en el nickname padre",sizeof("Error en el nickname padre"), 0);
+        send(sock,ERROR_MENSAJE_PRIVADO2,sizeof(ERROR_MENSAJE_PRIVADO2), 0);
 
         return -1;
     }
 
     //printf("[Buffer] %s\n",buf);
 
-    if (obtener_mensaje(msg,buf) == -1){
+    if (obtener_mensaje(aux,buf) == -1){
 
-        send(sock,"Error en el mensaje padre",sizeof("Error en el mensaje padre"), 0);
+        send(sock,ERROR_MENSAJE_PRIVADO3,sizeof(ERROR_MENSAJE_PRIVADO3), 0);
         return -1;
     }
 
     
 
-    strcpy(aux,nickname);
-    strncat(aux," >> ",sizeof(" >> "));
+    strcpy(msg,nickname);
+    strncat(msg," >> ",sizeof(" >> "));
 
-    strncat(aux,msg,sizeof(msg));
+    strncat(msg,aux,sizeof(aux));
   
-    printf("[msg] %s\n",aux);
+    //printf("[msg] %s\n",aux);
 
     
     int sockcli;
@@ -248,12 +254,12 @@ int mensaje_privado(int sock,char buf[BSIZE],char nickname[BSIZE]){
 
         indice = indice_nickname(nicknamePrivado);
         
-        printf("indice %d",indice);
+        //printf("indice %d",indice);
         
         if(indice != -1){
 
             sockcli = clientes[indice];
-            send(sockcli,aux,strlen(aux), 0);
+            send(sockcli,msg,strlen(msg), 0);
 
         }else{
 
