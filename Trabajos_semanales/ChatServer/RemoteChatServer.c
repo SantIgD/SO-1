@@ -34,12 +34,15 @@ servidor */
 #define NICKNAME_EN_USO "[ChatServer] El nickname ingresado ya esta en uso, porfavor vuelva a ingresar otro"
 #define NICKNAME_OTORGADO "[ChatServer] Su nickname en el Chat es: "
 #define NICKNAME_REQUEST "[ChatServer] Ingrese su nickname"
+#define NICKNAME_NUEVO_OTORGADO "[ChatServer] Su nuevo nickname en el Chat es: "
+
 
 #define ERROR_MENSAJE_PRIVADO1 "[ChatServer] El nickname ingresado no coincide con ningun usuario conectado"
 #define ERROR_MENSAJE_PRIVADO2 "[ChatServer] Falta el destinatario"
 #define ERROR_MENSAJE_PRIVADO3 "[ChatServer] Falta el mensaje" 
 
 #define ERROR_CAMBIO_NICKNAME "[ChatServer] Falta ingresar el nuevo nickname"
+
 /* Tamaño del buffer */
 #define BSIZE 1024
 
@@ -273,33 +276,45 @@ int mensaje_privado(int sock,char buf[BSIZE],char nickname[BSIZE]){
 
 }
 
-void cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
+int cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
     
     char aux[BSIZE];
+    char aux2[BSIZE];
 
-    int lenNickname;
-    obtener_nickname(aux,buf);
-    lenNickname = sizeof(aux);
-    int indice,longitudMinima=11;
-    
-    if(strlen(buf) > longitudMinima && lenNickname > 0 ){
-        if (indice_nickname(aux)==-1 ){
+    int lenNickname,ret=-1;
 
-            indice=indice_nickname(nickname);
+    if (obtener_nickname(aux,buf) != -1){
 
-            strcpy(nicknames[indice],aux);
-            strcpy(nickname,aux);
-            strcat(aux," <- Sera su nuevo nickname.");
-            send(sock,aux,sizeof(aux), 0);
+        lenNickname = sizeof(aux);
+        int indice,longitudMinima=11; 
+
+        if(lenNickname > 0 ){
+
+            if (indice_nickname(aux) == -1 ){
+
+                indice = indice_nickname(nickname);
+
+                strcpy(nicknames[indice],aux);
+                strcpy(nickname,aux);
+                
+                
+                strcat(aux2,NICKNAME_NUEVO_OTORGADO);
+                strcat(aux2,aux);
+                send(sock,aux2,sizeof(aux2), 0);
+
+                ret = 0;
+            }
+            else{
+                send(sock,NICKNAME_EN_USO,sizeof(NICKNAME_EN_USO), 0);
+            }
         }
         else{
-
-            send(sock,NICKNAME_EN_USO,sizeof(NICKNAME_EN_USO), 0);
+            send(sock,ERROR_CAMBIO_NICKNAME,sizeof(ERROR_CAMBIO_NICKNAME), 0);
         }
     }
-    else{
-        send(sock,ERROR_CAMBIO_NICKNAME,sizeof(ERROR_CAMBIO_NICKNAME), 0);
-    }
+
+    return ret;
+
 }
 
 void send_all(char buf[BSIZE]){
