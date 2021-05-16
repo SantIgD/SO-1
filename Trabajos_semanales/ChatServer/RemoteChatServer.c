@@ -29,6 +29,7 @@ servidor */
 
 
 
+
 #define EXITMSG "OK"
 #define NICKNAME_EN_USO "[ChatServer] El nickname ingresado ya esta en uso, porfavor vuelva a ingresar otro"
 #define NICKNAME_OTORGADO "[ChatServer] Su nickname en el Chat es: "
@@ -36,6 +37,8 @@ servidor */
 
 #define ERROR_MENSAJE_PRIVADO1 "[ChatServer] El nickname ingresado no coincide con ningun usuario conectado"
 #define ERROR_MENSAJE_PRIVADO2 "[ChatServer] Falta el destinatario" 
+
+#define ERROR_CAMBIO_NICKNAME "[ChatServer] Falta ingresar el nuevo nickname"
 /* Tamaño del buffer */
 #define BSIZE 1024
 
@@ -136,84 +139,129 @@ int main(int argc, char **argv){
   return 0;
 }
 
-int obtener_indice_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]){
-    int j=0,cont=0;
+int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]){
     
-    while(buf[j]!=' ' && buf[j]!='\0'&& buf[j]!='\n'){
-        j++;
-    }
+    char* token = strtok(buf, " "); // en token queda la operacion
+    int cont = 0,ret = 0;
 
-    j++;
+    while (token != NULL && cont != 2){
 
-    while(buf[j]!=' ' && buf[j]!='\0' && buf[j]!='\n'){
-        nicknamePrivado[cont]=buf[j];
         cont++;
-        j++;
-    }
-
-
-    return cont;
-}
-
-void adjuntar_mensaje(char buffer[BSIZE],char buf[BSIZE]){
-    int j=0,cont=0,bandera=0;
-    char aux[BSIZE]="";
-
-     while(bandera<2){
-        if(buf[j]==' ' || buf[j]=='\0' || buf[j]=='\n'){
-            bandera++;
-            printf("0| j %d\n",j);
-        }
         
-        j++;
-    
-        printf("1| j %d-----char %c=\n",j,buf[j]);
-     }
-   
-    //j++;
-    while(buf[j]!='\0' && buf[j]!='\n'){
-        aux[cont]=buf[j];
-        printf("2| j==%d\n",j);
-        cont++;
-        j++;
+        
+        if(cont==2){
+            strcpy(nicknamePrivado,token);
+        }
+
+        token = strtok(NULL, " ");
+
     }
 
-    strcat(buffer,aux);
+    if (token == NULL){
+        ret = -1; // No habia nickname
+    }
 
-    printf("3| j %d\n",j);
-
+    
+    return ret;
+    
 }
 
-void mensaje_privado(int sock,char buf[BSIZE],char nickname[BSIZE]){
+int obtener_mensaje(char buffer[BSIZE],char buf[BSIZE]){
+    
+
+        printf("[Buffer] %s\n",buf);
+    char* token = strtok(buf, " "); // en token queda la operacion
+    int cont = 0,ret = 0;
+
+
+        printf("[Token] %s\n",token);
+
+    while (token != NULL){
+
+        cont++;
+
+        if(cont > 2 && token != NULL){
+            strncat(buffer,token,sizeof(token));
+            strncat(buffer," ",sizeof(token));
+        }
+
+        token = strtok(NULL, " ");
+        
+    }
+
+    if (cont < 2){
+        ret = -1; // No habia mensaje
+    }
+
+    printf("[Mensaje] %s\n",buffer);
+
+    
+    return ret;
+}
+
+int mensaje_privado(int sock,char buf[BSIZE],char nickname[BSIZE]){
     //Hacer control de errores de mnsages y nicknames
     char nicknamePrivado[BSIZE]="";
 
-    int lenNickname = obtener_indice_nickname(nicknamePrivado,buf);
-    
+    int lenNickname;
     int indice;
+    char msg[BSIZE]="";
+    char aux[BSIZE]="";
+    char aux2[BSIZE]="";
+
+    strcpy(aux2,buf);
+     
+
+    //printf("[Buffer] %s\n",buf);
+
+    if (obtener_nickname (nicknamePrivado,aux2) == -1){
+
+        send(sock,"Error en el nickname padre",sizeof("Error en el nickname padre"), 0);
+
+        return -1;
+    }
+
+    //printf("[Buffer] %s\n",buf);
+
+    if (obtener_mensaje(msg,buf) == -1){
+
+        send(sock,"Error en el mensaje padre",sizeof("Error en el mensaje padre"), 0);
+        return -1;
+    }
+
+    
+
+    strcpy(aux,nickname);
+    strncat(aux," >> ",sizeof(" >> "));
+
+    strncat(aux,msg,sizeof(msg));
+  
+    printf("[msg] %s\n",aux);
+
     
     int sockcli;
-    char buffer[BSIZE]="";
-    if(lenNickname > 0){
+    
+
+    //obtener_nickname(nicknamePrivado,buf);
+
+    if (lenNickname = strlen(nicknamePrivado)){
 
         indice = indice_nickname(nicknamePrivado);
         
         printf("indice %d",indice);
         
-        if(indice!=-1){
+        if(indice != -1){
 
             sockcli = clientes[indice];
-            strcpy(buffer,nickname);
-            strncat(buffer," >> ",sizeof(" >> "));
-            adjuntar_mensaje(buffer,buf);
-            send(sockcli,buffer,strlen(buffer), 0);
+            send(sockcli,aux,strlen(aux), 0);
 
         }else{
 
             send(sock,ERROR_MENSAJE_PRIVADO1,sizeof(ERROR_MENSAJE_PRIVADO1), 0);
         }
-    }
-    else{
+
+    }else{
+
         send(sock,ERROR_MENSAJE_PRIVADO2,sizeof(ERROR_MENSAJE_PRIVADO2), 0);
     }
 
@@ -223,8 +271,9 @@ void cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
     
     char aux[BSIZE];
 
-    int lenNickname = obtener_indice_nickname(aux,buf);
-    
+    int lenNickname;
+    obtener_nickname(aux,buf);
+    lenNickname = sizeof(aux);
     int indice,longitudMinima=11;
     
     if(strlen(buf) > longitudMinima && lenNickname > 0 ){
@@ -239,11 +288,11 @@ void cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
         }
         else{
 
-            send(sock,"El ingresado nickname ya esta en uso",sizeof("El ingresado nickname ya esta en uso"), 0);
+            send(sock,NICKNAME_EN_USO,sizeof(NICKNAME_EN_USO), 0);
         }
     }
     else{
-        send(sock,"El comando /nickname esta incompleto",sizeof("El comando /nickname esta incompleto"), 0);
+        send(sock,ERROR_CAMBIO_NICKNAME,sizeof(ERROR_CAMBIO_NICKNAME), 0);
     }
 }
 
@@ -261,29 +310,30 @@ void mensaje_all(char buf[BSIZE],char nickname[BSIZE]){
   strcpy(buffer,nickname);
   strncat(buffer," >> ",sizeof(" >> "));
   strcat(buffer,buf);
+
   send_all(buffer);
 
 }
 
-void reordenar_clientes(char nickname[BSIZE]){
+void clientes_fix_array(char nickname[BSIZE]){
 
-    int indice=indice_nickname(nickname);
-    printf("clientes %d /%d/ salio %s/reemplazo %s\n",clientesConectados,indice,nicknames[indice],nicknames[clientesConectados-1]);
-    if (indice+1<clientesConectados){
+    int indice = indice_nickname(nickname);
+    int indiceUltimo = clientesConectados--;
 
-        strcpy(nicknames[indice],nicknames[clientesConectados-1]);
-        clientes[indice]=clientes[clientesConectados-1];
-        clientesConectados--;
-    }
-    else{
-        clientesConectados--;
+    printf("clientes %d /%d/ salio %s/reemplazo %s\n",clientesConectados,indice,nicknames[indice],nicknames[clientesConectados]);
+    
+
+    if (indice != indiceUltimo){
+
+        strcpy(nicknames[indice],nicknames[indiceUltimo]);
+        clientes[indice] = clientes[indiceUltimo];
     }
 
 }
 
 int desconectar_cliente(int sock,char nickname[BSIZE]){
 
-    reordenar_clientes(nickname);
+    clientes_fix_array(nickname);
     imprimir_nicknames();
     send(sock,EXITMSG,sizeof(EXITMSG), 0);
     return 0;
@@ -359,7 +409,7 @@ int indice_nickname(char nickname[BSIZE]){
 
 int verificar_operacion(char buf[BSIZE]){
     char aux[15]="";
-    int ret = 3;
+    int ret = MENSAJE_ALL;
 
     if(buf[0] == '/'){
 
@@ -371,10 +421,10 @@ int verificar_operacion(char buf[BSIZE]){
             ret = CLIENTE_DESCONECTAR;
         }
         else if(strcmp(aux,"/msg")==0){
-            ret = MENSAJE_ALL;
+            ret = MENSAJE_PRIVADO;
         }
         else if(strcmp(aux,"/nickname")==0){
-            ret = MENSAJE_PRIVADO;
+            ret = CLIENTE_NUEVO_NICK;
         }
     }
     return ret;    
