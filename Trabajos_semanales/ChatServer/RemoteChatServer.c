@@ -12,6 +12,8 @@
 /****/
 /* Threads! */
 #include <pthread.h>
+/* Signals */
+#include <signal.h>
 
 /* Asumimos que el primer argumento es el puerto por el cual escuchará nuestro
 servidor */
@@ -29,12 +31,13 @@ servidor */
 
 
 
-
+#define SHUTDOWN "shutdown"
 #define EXITMSG "OK"
 #define NICKNAME_EN_USO "[ChatServer] El nickname ingresado ya esta en uso, porfavor vuelva a ingresar otro"
 #define NICKNAME_OTORGADO "[ChatServer] Su nickname en el Chat es: "
 #define NICKNAME_REQUEST "[ChatServer] Ingrese su nickname"
-#define NICKNAME_NUEVO_OTORGADO "[ChatServer] Su nuevo nickname en el Chat es: "
+#define NICKNAME_NUEVO_OTORGADO1 "[ChatServer] Su nuevo nickname en el Chat es: "
+#define NICKNAME_NUEVO_OTORGADO2 " a cambiado su nickname a: "
 
 
 #define ERROR_MENSAJE_PRIVADO1 "[ChatServer] El nickname ingresado no coincide con ningun usuario conectado"
@@ -54,7 +57,7 @@ int clientes[MAX_CLIENTS];
 char nicknames[MAX_CLIENTS][BSIZE];
 int clientesConectados = 0;
 pthread_mutex_t candado;
-
+int socksrv;
 
 /* Encargado de manejarse con un cliente */
 void *moderador(void *arg);
@@ -90,20 +93,26 @@ int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]);
 /* Obtiene el mensaje a enviar por privado*/
 int obtener_mensaje(char buffer[BSIZE],char buf[BSIZE]);
 
+/* Recibe interrupciones y termina elegantemente*/
+void handler(int arg);
+
 int main(int argc, char **argv){
 
-  int sock, *soclient;
+  int *soclient;
   struct sockaddr_in servidor, clientedir;
   socklen_t clientelen;
   pthread_t thread;
   pthread_attr_t attr;
   //int argumentos[MAX_CLIENTS];
   
+  signal(SIGINT, handler);
+  signal(SIGTERM, handler);
+
   if (argc != 2) error("Faltan argumentos");
 
   pthread_mutex_init(&candado,NULL);
 
-  sock = crear_inicializar_socket(sock,servidor,htons(atoi(argv[1])));
+  socksrv = crear_inicializar_socket(socksrv,servidor,htons(atoi(argv[1])));
  
   printf("Enlazamiento exitoso, escuchando a %s\n",argv[1]);
 
@@ -115,7 +124,7 @@ int main(int argc, char **argv){
   /********************/
 
   /* Ya podemos aceptar conexiones */
-  if(listen(sock, MAX_CLIENTS) == -1)
+  if(listen(socksrv, MAX_CLIENTS) == -1)
     error(" Listen error ");
   
   
@@ -126,7 +135,7 @@ int main(int argc, char **argv){
 
     /* Cuando llegue un nuevo cliente, le vamos a aceptar*/
     clientelen = sizeof(clientedir);
-    if ((*soclient = accept(sock
+    if ((*soclient = accept(socksrv
                           , (struct sockaddr *) &clientedir
                           , &clientelen)) == -1)
       error("No se puedo aceptar la conexión. ");
@@ -143,7 +152,7 @@ int main(int argc, char **argv){
   }
 
   /* Código muerto */
-  close(sock);
+  close(socksrv);
 
   return 0;
 }
@@ -281,6 +290,8 @@ int cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
     char nuevoNickName[BSIZE];
     char msg[BSIZE];
 
+    strcpy(msg,"");
+
     int lenNickname,ret=-1;
 
     if (obtener_nickname(nuevoNickName,buf) != -1){
@@ -295,12 +306,21 @@ int cambiar_nickname(int sock,char buf[BSIZE],char nickname[BSIZE]){
                 indice = indice_nickname(nickname);
 
                 strcpy(nicknames[indice],nuevoNickName);
+            
+                strcpy(msg,"[ChatServer]");
+                strcat(msg,nickname);
+                strcat(msg,NICKNAME_NUEVO_OTORGADO2);
+                strcat(msg,nuevoNickName);
+                send_all(msg);
+
+                strcpy(msg,"");    
+
                 strcpy(nickname,nuevoNickName);
                 
-                
-                strcat(msg,NICKNAME_NUEVO_OTORGADO);
+                strcat(msg,NICKNAME_NUEVO_OTORGADO1);
                 strcat(msg,nuevoNickName);
                 send(sock,msg,sizeof(msg), 0);
+                
 
                 ret = 0;
             }
@@ -430,24 +450,27 @@ int indice_nickname(char nickname[BSIZE]){
 }
 
 int verificar_operacion(char buf[BSIZE]){
-    char aux[15]="";
+    char comando[15]="";
+    char aux[BSIZE];
+    char* token;
     int ret = MENSAJE_ALL;
+    
+    strcpy(aux,buf);
+    token = strtok(aux," ");
 
-    if(buf[0] == '/'){
+    if (token != NULL){
 
-        for(int i = 0;buf[i]!=' ' && i < 15;i++){
-            aux[i]=buf[i];
-        }
+        strcpy(comando,token);
+    }
 
-        if(strcmp(aux,"/exit")==0){
-            ret = CLIENTE_DESCONECTAR;
-        }
-        else if(strcmp(aux,"/msg")==0){
-            ret = MENSAJE_PRIVADO;
-        }
-        else if(strcmp(aux,"/nickname")==0){
-            ret = CLIENTE_NUEVO_NICK;
-        }
+    if(strcmp(comando,"/exit")==0){
+        ret = CLIENTE_DESCONECTAR;
+    }
+    else if(strcmp(comando,"/msg")==0){
+        ret = MENSAJE_PRIVADO;
+    }
+    else if(strcmp(comando,"/nickname")==0){
+        ret = CLIENTE_NUEVO_NICK;
     }
     return ret;    
 }
@@ -531,4 +554,17 @@ void * moderador(void *_arg){
 
   free((int*)_arg);
   return NULL;
+}
+
+void handler(int arg){
+
+  char buf[BSIZE];
+  strcpy(buf,SHUTDOWN);
+  send_all(buf);
+  
+  while(clientesConectados != 0);
+
+  close(socksrv);
+  exit(EXIT_SUCCESS);   
+  
 }

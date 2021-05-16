@@ -19,6 +19,7 @@
 #define MAXSIZEMSG 1024
 #define MAXIP 25
 #define MAXPORT 10
+#define EXITMSG "/exit"
 
 char ip[MAXIP];
 char puerto[MAXPORT];
@@ -110,7 +111,11 @@ void* recibir (void * arg){
     
     if(strcmp(buf,"OK") == 0)
       cerrar_cliente();
-      
+    
+    if(strcmp(buf,"shutdown") == 0){
+      strcpy(buf,EXITMSG);
+      send(sock,buf,sizeof(buf),0);
+    }
     buf[bytes] = '\0';
     
     printf("%s\n", buf);
