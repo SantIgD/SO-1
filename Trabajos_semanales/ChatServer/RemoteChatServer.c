@@ -38,6 +38,7 @@ servidor */
 #define NICKNAME_REQUEST "[ChatServer] Ingrese su nickname"
 #define NICKNAME_NUEVO_OTORGADO1 "[ChatServer] Su nuevo nickname en el Chat es: "
 #define NICKNAME_NUEVO_OTORGADO2 " a cambiado su nickname a: "
+#define NICKNAME_NOTIFICATION_ALL "[ChatServer] Bienvenido a la sala "
 
 
 #define ERROR_MENSAJE_PRIVADO1 "[ChatServer] El nickname ingresado no coincide con ningun usuario conectado"
@@ -58,7 +59,8 @@ char nicknames[MAX_CLIENTS][BSIZE];
 int clientesConectados = 0;
 pthread_mutex_t candado;
 int socksrv;
-int* argumentos;
+int** dirClientes;
+int *soclient;
 
 /* Encargado de manejarse con un cliente */
 void *moderador(void *arg);
@@ -99,7 +101,6 @@ void handler(int arg);
 
 int main(int argc, char **argv){
 
-  int *soclient;
   struct sockaddr_in servidor, clientedir;
   socklen_t clientelen;
   pthread_t thread;
@@ -110,7 +111,7 @@ int main(int argc, char **argv){
   signal(SIGTERM, handler);
 
 
-  if (argc != 2) error("Faltan argumentos");
+  if (argc != 2) error("Faltan dirClientes");
 
   pthread_mutex_init(&candado,NULL);
 
@@ -129,7 +130,7 @@ int main(int argc, char **argv){
   if(listen(socksrv, MAX_CLIENTS) == -1)
     error(" Listen error ");
   
-  argumentos=malloc(sizeof(int)* MAX_CLIENTS);
+  dirClientes=malloc(sizeof(int)* MAX_CLIENTS);
   while(1){ 
 
     /* Pedimos memoria para el socket */
@@ -145,6 +146,7 @@ int main(int argc, char **argv){
     
         
     clientes[clientesConectados] = *soclient;
+    dirClientes[clientesConectados] = soclient;
     strcpy(nicknames[clientesConectados],DEFAULTNICK);
     clientesConectados++;
     
@@ -502,9 +504,10 @@ int crear_inicializar_socket(int sock, struct sockaddr_in servidor, int puerto){
   servidor.sin_port = puerto;
 
   /* Inicializamos el socket */
-  if (bind(sock, (struct sockaddr *) &servidor, sizeof(servidor)))
+  if (bind(sock, (struct sockaddr *) &servidor, sizeof(servidor))){
     error("Error en el bind");
-
+    close(sock);
+  }
   return sock;
 }
 
@@ -524,6 +527,7 @@ void * moderador(void *_arg){
   char auxiliar[BSIZE];
   int clienteOn = 1;
   int indice,contador=0;
+  char nuevoNick[BSIZE];
 
   strcpy(nickname,DEFAULTNICK);
 
@@ -534,9 +538,11 @@ void * moderador(void *_arg){
   }
   
   
-  pthread_mutex_lock(&candado);  
+    pthread_mutex_lock(&candado);
+ 
   /*Verificamos que el cliente tenga un nickname posible*/
   while (is_nickname_disponible(nickname) != DISPONIBLE){
+        
         
         pthread_mutex_unlock(&candado);
 
@@ -562,12 +568,18 @@ void * moderador(void *_arg){
   
   strcpy(nicknames[indice],nickname);
   
+  
+  strcpy(buf,NICKNAME_NOTIFICATION_ALL);
+  strcat(buf,nickname);  
+  send_all(buf);
+    
   imprimir_nicknames();
-
+  strcpy(buf," ");
   pthread_mutex_unlock(&candado);    
   
   strcpy(buf,NICKNAME_OTORGADO);
   strcat(buf,nickname);
+  
   send(sock , buf,sizeof(buf), 0);
 
   while(clienteOn){
@@ -579,7 +591,7 @@ void * moderador(void *_arg){
     clienteOn = procesar_mensaje(sock,buf,nickname);
   }
   
-
+  close(sock);
   free((int*)_arg);
   return NULL;
 }
@@ -590,9 +602,12 @@ void handler(int arg){
   strcpy(buf,EXITMSG);
   send_all(buf);
   
-  //for(int i=0;i<clientesConectados;i++)
-    //free(argumentos[i]);
-
-  free(argumentos);
+  for(int i=0;i<clientesConectados;i++){
+    close(clientes[i]);
+    free(dirClientes[i]);
+  }
+  
+  free(soclient);
+  free(dirClientes);
   exit(EXIT_SUCCESS);  
 }
