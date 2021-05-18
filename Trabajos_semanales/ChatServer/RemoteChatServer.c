@@ -22,13 +22,17 @@ servidor */
 #define MAX_CLIENTS 25
 
 #define DISPONIBLE -1
+#define NO_DISPONIBLE 1
 
 #define CLIENTE_DESCONECTAR 10
 #define MENSAJE_ALL 11
 #define MENSAJE_PRIVADO 12
 #define CLIENTE_NUEVO_NICK 13
 
+#define EXIT 0
 
+
+#define MAX_NICKNAME_SIZE 20
 
 #define DEFAULTNICK "noname"
 #define SHUTDOWN "shutdown"
@@ -96,8 +100,42 @@ int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]);
 /* Obtiene el mensaje a enviar por privado*/
 int obtener_mensaje(char buffer[BSIZE],char buf[BSIZE]);
 
+/* Busca el indice del cliente asociado al socket*/
+int obtener_indice_cliente(int sock);
+
+/* Pide el nombre de usuario por primera vez*/
+int ask_nickname_1(int sock,int indice,char nickname[BSIZE]);
+
+
+/* Verifica si el cliente quiere salir*/
+int check_exit_msg(char nickname[BSIZE],int indice,int sock);
+
+/* Pide el nombre de usuario hasta que se ingrese correctamente*/
+int ask_nickname_2(int sock,int indice,char nickname[BSIZE]);
+
+/* Envia el mensaje a todos los clientes conectados*/
+void send_all(char buf[BSIZE]);
+
+/* Desconecta el cliente */
+int desconectar_cliente(int sock,char nickname[BSIZE]);
+
 /* Recibe interrupciones y termina elegantemente*/
-void handler(int arg);
+void handler(int arg){
+
+  char buf[BSIZE];
+  strcpy(buf,EXITMSG);
+  send_all(buf);
+  
+  for(int i=0;i<clientesConectados;i++){
+    close(clientes[i]);
+    free(dirClientes[i]);
+  }
+  
+  free(soclient);
+  free(dirClientes);
+  exit(EXIT_SUCCESS);  
+}
+
 
 int main(int argc, char **argv){
 
@@ -163,6 +201,166 @@ int main(int argc, char **argv){
 
   return 0;
 }
+
+void * moderador(void *_arg){
+
+  int sock = *(int*) _arg
+      ,indice
+      ,contador = 0
+      ,clienteOn = 1
+      ,nickNameFlag = 0;
+
+  char buf[BSIZE]
+      ,nickname[BSIZE]
+      ,auxiliar[BSIZE]
+      ,nuevoNick[BSIZE];
+
+  int c1 = 0;
+  strcpy(nickname,DEFAULTNICK);
+
+  indice = obtener_indice_cliente(sock);
+
+  printf("[%d]\n",c1);
+  c1++;
+  
+  nickNameFlag = ask_nickname_1(sock,indice,nickname);
+
+
+  printf("[%d]\n",c1);
+  c1++;
+
+  switch (nickNameFlag){
+
+      case EXIT:
+      {
+        clienteOn = 0;
+        break;
+      }
+      case NO_DISPONIBLE:
+      {
+        clienteOn = ask_nickname_2(sock,indice,nickname);
+        break;
+      }
+
+      default: // Recibimos nickname correcto
+      {
+        
+        strcpy(nicknames[indice],nickname);
+        strcpy(buf,NICKNAME_NOTIFICATION_ALL);
+        strcat(buf,nickname);  
+        send_all(buf);
+        break;  
+      }
+
+
+  }
+
+  strcpy(nicknames[indice],nickname);
+  strcpy(buf,NICKNAME_NOTIFICATION_ALL);
+  strcat(buf,nickname);  
+  send_all(buf);
+
+
+  imprimir_nicknames();
+  strcpy(buf," ");
+  pthread_mutex_unlock(&candado);    
+  
+  strcpy(buf,NICKNAME_OTORGADO);
+  strcat(buf,nickname);
+  
+  send(sock , buf,sizeof(buf), 0);
+
+  while(clienteOn){
+
+    /* Esperamos mensaje */
+    recv(sock, buf, sizeof(buf), 0);
+
+    
+    clienteOn = procesar_mensaje(sock,buf,nickname);
+  }
+  
+  close(sock);
+  free((int*)_arg);
+  return NULL;
+}
+
+
+
+int obtener_indice_cliente(int sock){
+    int indice;
+
+    for(int i = 0; i < clientesConectados; i++){
+        
+        if(clientes[i]==sock){
+            indice=i;
+        }
+    }
+
+    return indice;
+}
+
+
+int ask_nickname_1(int sock,int indice,char nickname[BSIZE]){
+
+  int ret = DISPONIBLE; 
+
+  send(sock , NICKNAME_REQUEST,sizeof(NICKNAME_REQUEST), 0);
+  recv(sock, nickname, MAX_NICKNAME_SIZE, 0);
+
+  pthread_mutex_lock(&candado); 
+  
+
+  ret = check_exit_msg(nickname,indice,sock);
+
+  if (ret == DISPONIBLE && is_nickname_disponible(nickname) != DISPONIBLE){
+      ret = NO_DISPONIBLE;
+  }
+
+  pthread_mutex_unlock(&candado); 
+
+  return ret;
+
+}
+
+int ask_nickname_2(int sock,int indice,char nickname[BSIZE]){
+
+  int clienteOn = 1;
+
+  pthread_mutex_lock(&candado); 
+
+  while (is_nickname_disponible(nickname) != DISPONIBLE){
+           
+    pthread_mutex_unlock(&candado);
+
+    send(sock ,NICKNAME_EN_USO , sizeof(NICKNAME_EN_USO), 0);
+    
+    recv(sock, nickname, MAX_NICKNAME_SIZE, 0);
+
+    pthread_mutex_lock(&candado);
+        
+    clienteOn = check_exit_msg(nickname,indice,sock);
+        
+  }
+
+  return clienteOn;    
+
+}
+
+
+int check_exit_msg(char nickname[BSIZE],int indice,int sock){
+
+    int clienteOn = 1;
+
+    if (verificar_operacion(nickname) == CLIENTE_DESCONECTAR){
+        strcpy(nicknames[indice],nickname);
+        desconectar_cliente(sock,nickname);
+        clienteOn = EXIT;
+    }
+
+    return clienteOn;
+
+}
+
 
 int obtener_nickname(char nicknamePrivado[BSIZE],char buf[BSIZE]){
     
@@ -520,94 +718,3 @@ void imprimir_nicknames(){
 
 }
 
-void * moderador(void *_arg){
-  int sock = *(int*) _arg;
-  char buf[BSIZE];
-  char nickname[BSIZE];
-  char auxiliar[BSIZE];
-  int clienteOn = 1;
-  int indice,contador=0;
-  char nuevoNick[BSIZE];
-
-  strcpy(nickname,DEFAULTNICK);
-
-  for(int i=0;i<clientesConectados;i++){
-      if(clientes[i]==sock){
-          indice=i;
-      }
-  }
-  
-  
-    pthread_mutex_lock(&candado);
- 
-  /*Verificamos que el cliente tenga un nickname posible*/
-  while (is_nickname_disponible(nickname) != DISPONIBLE){
-        
-        
-        pthread_mutex_unlock(&candado);
-
-        if(contador == 0){
-            /*Pedimos un nickname al cliente*/
-            send(sock , NICKNAME_REQUEST,sizeof(NICKNAME_REQUEST), 0);
-            contador++;
-        }else     
-            send(sock ,NICKNAME_EN_USO , sizeof(NICKNAME_EN_USO), 0);
-      
-        recv(sock, nickname, sizeof(nickname), 0);
-
-        pthread_mutex_lock(&candado);
-         
-        if (verificar_operacion(nickname)==CLIENTE_DESCONECTAR){
-            strcpy(nicknames[indice],nickname);
-            desconectar_cliente(sock,nickname);
-            clienteOn=0;
-        }
-        
-  }    
-
-  
-  strcpy(nicknames[indice],nickname);
-  
-  
-  strcpy(buf,NICKNAME_NOTIFICATION_ALL);
-  strcat(buf,nickname);  
-  send_all(buf);
-    
-  imprimir_nicknames();
-  strcpy(buf," ");
-  pthread_mutex_unlock(&candado);    
-  
-  strcpy(buf,NICKNAME_OTORGADO);
-  strcat(buf,nickname);
-  
-  send(sock , buf,sizeof(buf), 0);
-
-  while(clienteOn){
-
-    /* Esperamos mensaje */
-    recv(sock, buf, sizeof(buf), 0);
-
-    
-    clienteOn = procesar_mensaje(sock,buf,nickname);
-  }
-  
-  close(sock);
-  free((int*)_arg);
-  return NULL;
-}
-
-void handler(int arg){
-
-  char buf[BSIZE];
-  strcpy(buf,EXITMSG);
-  send_all(buf);
-  
-  for(int i=0;i<clientesConectados;i++){
-    close(clientes[i]);
-    free(dirClientes[i]);
-  }
-  
-  free(soclient);
-  free(dirClientes);
-  exit(EXIT_SUCCESS);  
-}
