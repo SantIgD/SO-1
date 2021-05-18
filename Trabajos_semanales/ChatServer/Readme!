@@ -1,0 +1,62 @@
+Ejercicio semanal n° 3
+
+/*****Enunciado*****/
+
+El ejercicio consta de la implementación de una sala de chat con la capacidad de
+los usuarios puedan hablar entre ellos de forma instantánea. Deberán implementar
+un servidor, y un cliente, tal que una vez establecida la conexión, los clientes
+puedan conversar libremente.
+
+/*****Detalles de la Implementación*****/
+
+1) Longitud máxima del mensaje: 1024 caracteres.
+
+2) Compilación con make: se esperan dos ejecutables cliente y servidor.
+
+3) El cliente tomará la dirección Ipv4 y puerto al momento de ejecutarlo de la
+siguiente forma:$./cliente DirIp Puerto.
+
+4) El servidor tomará el puerto al cual esperará al cliente:$./servidor Puerto.
+
+5) Asumimos que hay un solo salón donde se puede enviar mensajes de forma general
+a todo el mundo (en este caso se decidio que cualquier mensaje que no inicie con ninguna de las
+lineas de comando especial se combiera un un mensaje global,que se envia a todos aquellos 
+clientes conectados incluyendo al que envio el mensaje).
+
+
+6) El cliente debe proveer un nombre (o nickname) que será único(Aqui en particular se decidio que hasta no tener 
+un nombre valido no se estara completamente conectado al servidor,no se podra enviar ni recebir ningun mensaje).
+
+7) /msg [nickname] [msg] le enviará un el mensaje msg al usuario con nombre nickname(si el nickname o el mensaje son vacios o
+el nickname no coincide con ningun nickname de los clientes conectados no se realizara la operacion).
+
+8) /exit saldrá del cliente.
+
+9) /nickname [nickname] intentará cambiar el nombre de usuario del cliente(Si el nickname es vacio o ya se encuentra en la lista de
+nicknames en uso no se realizara la operacion).
+
+
+/*****Aclaraciones*****/
+
+1) Si un cliente tratase de cambiar su nombre al nickname por default no podra hacerlo.
+
+2) Si un cliente trata de enviarle un mensaje a nickname por default no podra hacerlo.
+
+3) Cada vez que una operacion no se pueda realizar el cliente recibira una explicacion del problema.
+
+4) Se preparo tanto al cliente como al servidor para poder salir elegantemente utilizando el atajo por teclado "ctrl+c".
+
+5) Si el cliente termina su ejecucion el servidor sigue en funcionamiento pero en el caso de que el servidor termine
+de ejecutarse todos los clientes seran sacados amablemente por el servidor.
+
+6) Cada vez que alguien entre al servidor (obteniendo su nickname) se le confirma su nickname y se le avisa a cada cliente que
+un usuario con dicho nickname a entrado.
+
+7) El cliente puede usar el comando exit para salir del servidor cuando aun no tiene un nickname asignado.
+
+
+
+
+
+
+

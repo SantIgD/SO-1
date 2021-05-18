@@ -1,31 +1,60 @@
-/* RemoteClient.c
-   Se introducen las primitivas necesarias para establecer una conexión simple
-   dentro del lenguaje C utilizando sockets.
-*/
+/*****************************/
+/* RemoteClient.c */
+/*****************************/
+
 /* Cabeceras de Sockets */
+/*****************************/
 #include <sys/types.h>
 #include <sys/socket.h>
+/*****************************/
+
 /* Cabecera de direcciones por red */
+/*****************************/
 #include <netdb.h>
-/****/
+/*****************************/
+
+
+/*Librerias complementarias*/
+/*****************************/
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
-#include <pthread.h>
-#include <signal.h>
+/*****************************/
 
+
+/* Threads! */
+/*****************************/
+#include <pthread.h>
+/*****************************/
+
+/* Signals */
+/*****************************/
+#include <signal.h>
+/*****************************/
+
+/*****Constates*****/
+/**************************************************************/
 
 #define MAXSIZEMSG 1024
 #define MAXIP 25
 #define MAXPORT 10
 #define EXITMSG "/exit"
+/**************************************************************/
+
+/*Varibles globales*/
+/**************************************************************/
 
 char ip[MAXIP];
 char puerto[MAXPORT];
-int sock;
+int sock;//Socket del cliente que se conectara con el servidor
 struct addrinfo *resultado;
-int estado=-1;
+int estado=-1;//bandera para el control de señales
+pthread_t clienteEscribir, clienteRecibir;
+/**************************************************************/
+
+/*Funciones del cliente*/
+/**************************************************************/
 
 /*Printea error con el mensaje msg por pantalla*/
 void error(char *msg);
@@ -35,9 +64,6 @@ void cerrar_cliente();
 
 /* Manejo de signals */
 void handler(int arg);
-
-/* Esto no deberia estar aca o no lo entiendo */
-int verificar_opcion(char buf[MAXSIZEMSG]);
 
 /* Inicializa y conecta un socket a un ip:puerto*/
 int conectar_socket_red();
@@ -54,6 +80,9 @@ void upload_data(char* argv[]);
 /* Creacion/Join de hilos */
 void hilos();
 
+/**************************************************************/
+
+
 int main(int argc, char **argv){
 
   //Chequeamos mínimamente que los argumentos fueron pasados/
@@ -64,31 +93,37 @@ int main(int argc, char **argv){
     exit(1);
   }
   
+  /*Peparamos el manejo de señales*/  
   signal(SIGINT, handler);
   signal(SIGTERM, handler);
   
+  /*Cargamos la informacion de los argumentos*/
   upload_data(argv);
        
+  /*Conectamos con el servidor*/
   sock = conectar_socket_red();
 
   printf("Se ha podido establecer conexion con el server %s:%s\n",ip,puerto);
   
+  /*Ponemos en funcionamiento la lectura y escritura*/
   hilos();
 
    /* Cerramos :D!*/
   freeaddrinfo(resultado);
   close(sock);
-
   return 0;
 }
 
+void salir_hilo(int arg){
+  pthread_exit(NULL);
+}
 
 void* escribir(void * arg){
 
   int sock = *(int *) arg;
   char buf[MAXSIZEMSG];
   ssize_t bytes;
-
+  signal(1,salir_hilo);
   while(1){
 
     scanf(" %[^\n]s",buf);
@@ -100,18 +135,19 @@ void* escribir(void * arg){
 
 void* recibir (void * arg){
 
-  int sock = *(int *) arg;
+  int sock = *(int *) arg,
+      continuar=1;
   char buf[MAXSIZEMSG];
   ssize_t bytes;
 
 
-  while(1){
+  while(continuar){
 
     bytes = recv(sock, buf, sizeof(buf),0);
     
-    if(strcmp(buf,"OK") == 0)
-      cerrar_cliente();
-    
+    if(strcmp(buf,"OK") == 0){
+      continuar=0;
+    }
     if(strcmp(buf,"shutdown") == 0){
       strcpy(buf,EXITMSG);
       send(sock,buf,sizeof(buf),0);
@@ -120,7 +156,8 @@ void* recibir (void * arg){
     
     printf("%s\n", buf);
   }
-
+  pthread_kill(clienteEscribir,1);
+  pthread_exit(NULL);
 }
 
 void error(char *msg){
@@ -145,26 +182,6 @@ void handler(int arg){
   send(sock,buf,sizeof(buf),0);
 }
 
-
-int verificar_opcion(char buf[MAXSIZEMSG]){
-    char aux[15]="";
-    int ret=-1;
-    if(buf[0]=='/'){
-        for(int i = 0;buf[i]!=' ' && i < 15;i++){
-            aux[i]=buf[i];
-        }
-        if(strcmp(aux,"/exit")==0){
-            ret=0;
-        }
-        else if(strcmp(aux,"/msg")==0){
-            ret=1;
-        }
-        else if(strcmp(aux,"/nickname")==0){
-            ret=2;
-        }
-    }    
-    return ret;    
-}
 
 int conectar_socket_red(){
   int socksrv;
@@ -199,7 +216,6 @@ void upload_data(char* argv[]){
 
 void hilos(){
 
-  pthread_t clienteEscribir, clienteRecibir;
 
   pthread_create(&clienteEscribir , NULL , escribir, (void*) &sock);
   pthread_create(&clienteRecibir , NULL , recibir,(void*) &sock);
