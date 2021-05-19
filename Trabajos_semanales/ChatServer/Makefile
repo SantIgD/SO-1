@@ -1,9 +1,9 @@
 
 #Este es el Makefile para la compilacion del servidor y el cliente.
-servidor: RemoteChatSrv.c
-	gcc -o servidor RemoteChatSrv.c -lpthread
-cliente: RemoteChatCli.c
-	gcc -o cliente RemoteChatCli.c -lpthread
+servidor: RemoteChatServer.c
+	gcc -o servidor RemoteChatServer.c -lpthread
+cliente: RemoteChatClient.c
+	gcc -o cliente RemoteChatClient.c -lpthread
 
 
 #Regla para eliminar el archivos creados por la compilación

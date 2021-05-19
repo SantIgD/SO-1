@@ -105,7 +105,6 @@ char nicknames[MAX_CLIENTS][BSIZE];//Arreglo donde se almacenan los nicknames de
 int clientesConectados = 0;//Contador de clientes conectados
 pthread_mutex_t candado,candadoCierre;//Candado utilizado para evitar la superposicion de operaciones del server
 int socksrv;//Socket principal del servidor
-int** dirClientes;//Arreglo donde estan almacenadas las direcciones de memoria de los sockets de los clientes
 int *soclient;
 int srvOn = 1;
 /**************************************************************/
@@ -242,8 +241,6 @@ int main(int argc, char **argv){
   if(listen(socksrv, MAX_CLIENTS) == -1)
     error(" Listen error ");
   
-  /*Asignamos memoria al arrglo de dirClientes*/
-  dirClientes = malloc(sizeof(int*)* MAX_CLIENTS);
 
   while(srvOn){ 
 
@@ -263,7 +260,7 @@ int main(int argc, char **argv){
         /*Colocamos al socket del cliente recibido en un arreglo y le
         asignamos un nombre probicional*/    
         clientes[clientesConectados] = *soclient;
-        dirClientes[clientesConectados] = soclient;
+
         strcpy(nicknames[clientesConectados],DEFAULTNICK);
         clientesConectados++;
         
@@ -288,7 +285,6 @@ int main(int argc, char **argv){
 
 void cierre(){
 
-    free(dirClientes);
     free(soclient);
     
     shutdown(socksrv,SHUT_RDWR);
@@ -307,21 +303,6 @@ void handler(int arg){
   if(clientesConectados == 0){
       cierre();
   }
-  
-
-  
-
-  
-  /*for(int i=0;i<clientesConectados;i++){
-    close(clientes[i]);
-    free(dirClientes[i]);
-  }
-  
-  free(soclient);
-  free(dirClientes);
-  exit(EXIT_SUCCESS);*/  
-    
-  
 }
 
 
@@ -374,6 +355,13 @@ void * moderador(void *_arg){
   
   if (clienteOn != EXIT && clienteOn != NOTIFICADO){
 
+   
+   /*Le enviamos al cliente cual es su nickname en el server*/
+    
+    formatear_mensaje(NICKNAME_OTORGADO,buf,nickname);
+
+    send(sock , buf,sizeof(buf), 0);
+
    /*Colocamos el nombre del cliente en el arreglo de clientes*/
     create_msg_nuevo_nickname_notification(indice,nickname,buf);
 
@@ -385,11 +373,7 @@ void * moderador(void *_arg){
     
     imprimir_nicknames();
     
-    /*Le enviamos al cliente cual es su nickname en el server*/
     
-    formatear_mensaje(NICKNAME_OTORGADO,buf,nickname);
-
-    send(sock , buf,sizeof(buf), 0);
     
   }
   
@@ -431,11 +415,13 @@ int ask_nickname_1(int sock,int indice,char nickname[BSIZE]){
 
   int ret = DISPONIBLE; 
   char aux[BSIZE];
+  char* token;
 
   strcpy(aux,nickname);
 
   send(sock , NICKNAME_REQUEST,sizeof(NICKNAME_REQUEST), 0);
   recv(sock, aux, sizeof(aux), 0);
+
 
   pthread_mutex_lock(&candado); 
   
@@ -445,7 +431,8 @@ int ask_nickname_1(int sock,int indice,char nickname[BSIZE]){
       ret = NO_DISPONIBLE;
   }
 
-  strcpy(nickname,aux);
+  token = strtok(aux," ");
+  strcpy(nickname,token);
     
   pthread_mutex_unlock(&candado); 
 
