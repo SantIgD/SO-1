@@ -47,7 +47,7 @@ mutex_unlock(CandadoPID) ->
     CandadoPID ! {unlock,self()},
     
     receive 
-        {CandadoPID,lockSoltado} -> io:format("El proceso ~p solto el candado ~p",[self(),CandadoPID]);
+        {CandadoPID,lockSoltado} -> io:format("El proceso ~p solto el candado ~p~n",[self(),CandadoPID]);
         
         {CandadoPID,unlockImposible} -> err
     end.

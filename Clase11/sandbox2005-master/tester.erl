@@ -1,5 +1,5 @@
 -module(tester).
--export([play/0,players/1,printear/1]).
+-export([play/0,players/1,printear/2]).
 -import(mutex,[mutex_init/0,mutex_lock/1,mutex_unlock/1]).
 
 play()->
@@ -14,21 +14,16 @@ play()->
 
 players(Candado)->
     mutex_lock(Candado),
-    printear(self()),
+    printear(self(),5),
     mutex_unlock(Candado),
     okPlayers.
 
+printear(UserPid,0) -> ok;
 
-printear(UserPid) ->
-
+printear(UserPid,N) ->
     receive
-
-        {UserPid,stop} -> ok;
-        
-        _MsgErase -> printear(UserPid) 
-
     after
         
         1000 -> io:format("[~p] Hello World, this is my time~n",[self()]),
-                printear(UserPid)
+                printear(UserPid,N-1)
     end.
