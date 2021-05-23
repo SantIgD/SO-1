@@ -1,5 +1,5 @@
 -module(semaphore).
--export([sem_init/1,sem_post/1,sem_wait/1,semaforo/1,sem_get_value/1]).
+-export([sem_init/1,sem_post/1,sem_wait/1,semaforo/1,sem_get_value/1,sem_destroy/1]).
 
 
 sem_init(Cantidad)->
@@ -32,7 +32,10 @@ semaforo(Cantidad) ->
 
         {show,Pid} -> io:format("[Semaforo ~p] [Value] ~p~n",[self(),Cantidad]),
                       Pid ! {cantidad,Cantidad},
-                      semaforo(Cantidad)
+                      semaforo(Cantidad);
+
+        exit -> io:format("El semaforo ~p ha sido destruido~n",[self()])
+        
     
     end. 
 
@@ -60,4 +63,6 @@ sem_get_value(Semaforo)->
     end.
     
     
-            
+sem_destroy(Semaforo) ->
+    Semaforo ! exit,
+    ok.            

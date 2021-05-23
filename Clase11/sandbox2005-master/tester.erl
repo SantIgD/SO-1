@@ -1,6 +1,6 @@
 -module(tester).
 -export([play/0,players/1,printear/2]).
--import(mutex,[mutex_init/0,mutex_lock/1,mutex_unlock/1]).
+-import(mutex,[mutex_init/0,mutex_lock/1,mutex_unlock/1,mutex_destroy/1]).
 
 play()->
     
@@ -9,7 +9,11 @@ play()->
     P1 = spawn(?MODULE,players,[Candado]),
     P2 = spawn(?MODULE,players,[Candado]),
     P3 = spawn(?MODULE,players,[Candado]),
-        
+
+    receive 
+    after 
+        17000 ->mutex_destroy(Candado)
+    end,
     okPlay.
 
 players(Candado)->
@@ -18,7 +22,7 @@ players(Candado)->
     mutex_unlock(Candado),
     okPlayers.
 
-printear(UserPid,0) -> ok;
+printear(_UserPid,0) -> ok;
 
 printear(UserPid,N) ->
     receive

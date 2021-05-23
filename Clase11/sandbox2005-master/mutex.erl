@@ -1,5 +1,5 @@
 -module(mutex).
--export([mutex_lock/1,mutex_unlock/1, mutex_init/0,lock/0]).
+-export([mutex_lock/1,mutex_unlock/1, mutex_init/0,lock/0,mutex_destroy/1]).
 
 mutex_init() -> 
 
@@ -11,7 +11,11 @@ lock() ->
         {lock,UserPid} -> 
             
             UserPid ! {self(),lockTomado},
-            lock_tomado(UserPid)
+            lock_tomado(UserPid);
+
+        exit ->io:format("El candado ~p ha sido destruido~n",[self()]),
+            exit(normal)
+
 
     end.
 
@@ -52,4 +56,9 @@ mutex_unlock(CandadoPID) ->
         {CandadoPID,unlockImposible} -> err
     end.
 
-%%mutex_unlock(CandadoPID,Value)
+mutex_destroy(Candado)-> 
+    Candado ! exit,
+    okDestroy.
+    
+
+    
