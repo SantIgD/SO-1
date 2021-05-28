@@ -5,7 +5,7 @@
 %%
 -record(persona, {nombre, edad = 1, apellido = "Perez"}).
 
--export([martin/0,setF/1,cumplefeliz/1, personapp/1]).
+-export([martin/0,setF/1,cumplefeliz/1, personapp/1,is_person/1]).
 -export([play/0]).
 
 
@@ -28,8 +28,8 @@ setF(P) ->
 cumplefeliz(#persona{edad = Edad,apellido = Apellido} = P) ->
     P#persona{edad = Edad + 1,apellido = Apellido++"jajaja"}.
 
-cumplefeliz2(P) ->
-    P#persona{edad = P#persona.edad+1 + 1,apellido = P#persona.apellido ++"jajaja"}.
+%cumplefeliz2(P) ->
+ %   P#persona{edad = P#persona.edad+1 + 1,apellido = P#persona.apellido ++"jajaja"}.
 
 personapp(Persona) ->
     io:format("Nombre: ~p, Edad: ~p, Apellido: ~p ~n"
@@ -46,3 +46,14 @@ play() ->
     personapp(OLucas),
     
     OMartin.
+
+
+is_person(P) ->
+
+    if (is_record(P,persona)) ->
+
+        true;
+
+    true-> false
+
+    end.
