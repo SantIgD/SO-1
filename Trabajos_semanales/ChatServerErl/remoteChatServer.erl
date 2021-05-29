@@ -111,16 +111,31 @@ mozo(Socket,Nickname)->
                     nombreViejo -> mozo(Socket,Nickname)
                 end;
               
-        
-            mensaje2All -> scheduler(),ok;
 
-            {mensajePrivado} -> scheduler(),ok;
+            {"/msg",RestoPaquete} -> 
+                    {NicknameDestino ,Mensaje} = obtener_hasta_espacio(RestoPaquete),
+                    scheduler ! {mensajePrivado,Nickname,NicknameDestino,Mensaje,self()},
 
-            {exit} -> scheduler(),ok;
+                    receive
+                    mesajePrivadoEnviado -> mozo(Socket,Nickname);
 
-            {[],[]} -> errorPaquete
+                    {no,se,encontro,el,nickname} -> gen_tcp:send(Socket,"El nickname ingresado no existe"),
+                                                    mozo(Socket,Nickname)
+                    end;
 
+            {"/exit",_RestoPaquete} ->  scheduler ! {exit,Nickname,self()},
 
+                    receive
+                        
+                    rip -> gen_tcp:close(Socket),
+                           exit(normal)
+                    end;
+    
+
+            {[],[]} -> errorPaquete;
+
+           {_ComandoFail,_RestoPaquete} ->
+               ok
            end,
            mozo(Socket,Nickname);
        
@@ -156,10 +171,27 @@ nicknames(Nicknames) ->
                                scheduler ! {nickname,actualizado,correctamente},
                                nicknames(NewMap);
 
-                error -> scheduler ! {no,se,actualizo,el,nickname}
+                error -> scheduler ! {no,se,actualizo,el,nickname},
+                                    nicknames(Nicknames)
                                      
-            end        
-        
+            end ;
+               
+        {getSocket,NicknameDestino} -> 
+            
+            case maps:find(NicknameDestino,Nicknames) of
+
+                {ok, Socket} -> scheduler ! {socketObtenido, Socket},
+                                nicknames(Nicknames);
+
+                error -> scheduler ! {no,se,encontro,el,nickname},
+                        nicknames(Nicknames)
+            end;
+
+        {remove, Nickname} -> NewNicknames=maps:remove(Nickname,Nicknames),
+                              scheduler ! nombreBorrado,
+                              nicknames(NewNicknames)
+            
+            
     end.
                 
     
@@ -170,7 +202,7 @@ scheduler() ->
 
     receive
 
-        {ingresarNickname, Nickname, Socket, MozoID} -> nickname ! {agregar, Nickname, Socket},
+        {ingresarNickname, Nickname, Socket, MozoID} -> nicknames ! {agregar, Nickname, Socket},
     
             receive
 
@@ -189,7 +221,7 @@ scheduler() ->
         
         {cambiarNickname,NewNickname,OldNickname,MozoID}-> 
             
-            nickname ! {changeKey,NewNickname,OldNickname},
+            nicknames ! {changeKey,NewNickname,OldNickname},
 
             receive
 
@@ -203,11 +235,32 @@ scheduler() ->
             
             scheduler();
         
+        
+
+        {mensajePrivado,NicknameOrigen,NicknameDestino,Msj,MozoID} -> 
+            
+            nicknames ! {getSocket,NicknameDestino},
+            
+            receive
+
+                {socketObtenido, Socket} -> gen_tcp:send(Socket,"["++NicknameOrigen++"] "++ Msj),
+                                            MozoID ! mesajePrivadoEnviado,
+                                            scheduler();
+
+                {no,se,encontro,el,nickname} -> MozoID ! nicknameNoEncontrado,
+                                                scheduler()
+            end,
+            
+            
+            scheduler();
         {mensaje2All,_Nickname,_Msj} -> scheduler(),ok;
-
-        {mensajePrivado,_NicknameOrigen,_NicknameDestino,_Msj} -> scheduler(),ok;
-
-        {exit,_Nickname} -> scheduler(),ok
+        
+        {exit,Nickname,MozoID} -> nicknames ! {remove,Nickname},
+                                receive
+                                    nombreBorrado -> MozoID ! rip
+                                end,
+                                scheduler()
+                                
     end.
 
 
