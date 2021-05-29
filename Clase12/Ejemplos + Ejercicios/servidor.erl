@@ -1,4 +1,5 @@
--module(servidor).
+-module(servidor)
+.
 %%%-compile([debug_info]). Para debuguear(pero es muy engorroso)
 
 %%%%%%
@@ -9,11 +10,13 @@
 %% + verLista(PidResp) -> Se envía a `Pidresp` la lista de pares (Id,Clave).
 %% + finalizar(PidResp) -> Se finaliza el servicio y se responde con un `ok`.
 
+
 %% Creación y eliminación del servicio
 -export([iniciar/0, finalizar/0]).
 
 %% Servidor
 -export([serverinit/1]).
+
 
 -export([invertir/1]).
 %% Librería de Acceso
@@ -28,6 +31,7 @@ iniciar() ->
 
     register(servidorIds,ServerID),
     ok.
+
 
 
 %%%%%%%%%%% Servidor

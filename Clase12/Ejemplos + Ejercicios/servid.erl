@@ -1,7 +1,6 @@
 -module(servid).
-%-include("servid.hrl").
+-include("servid.hrl").
 
--record(nuevoId, {nombre, clientid}).
 %%%%%%
 %% Pequeño ejercicio de clase
 %% el servidor aceptara 4 tipos de pedidos:
@@ -22,10 +21,15 @@
 
 % Iniciar crea el proceso servidor, y devuelve el PId.
 iniciar() ->
+
     register(servidorIds,
              spawn( ?MODULE
                   , serverinit
                   , [self()])),
+
+    receive
+        ok -> io:format("Se inicio el servidor correctamente \n")
+    end,
     ok.
 
 %%%%%%%%%%%%%% Librería de Acceso
@@ -35,15 +39,15 @@ iniciar() ->
 nuevoNombre(Nombre) ->
     servidorIds ! {nuevoId, Nombre, self()},
     receive
-        {ok, N} -> N;
-        _  -> error
+        {nombreRegistrado, N} -> io:format("El nombre ~p se registro correctamente\n",[N]);
+        _MENSAJE  -> io:format("El mensaje recibido fue >~p<\n",[_MENSAJE])
     end.
 
 %% Función que recupera el nombre desde un Id
 quienEs(Id) ->
     servidorIds ! {buscarId, Id, self()},
     receive
-        {ok, Nm} -> Nm;
+        {idHallado, Nm} -> io:format("El nombre ~p es la clave del id ~p\n",[Nm,Id]);
         _  -> error
     end.
 
@@ -51,7 +55,7 @@ quienEs(Id) ->
 listaDeIds() ->
     servidorIds ! {verLista, self()},
     receive
-        {ok, List} -> List;
+        {listaRecuperada, List} -> io:format("La lista que corresponde al mapa es ~p\n",[List]);
         _ -> error
     end.
 
@@ -60,12 +64,14 @@ finalizar() ->
     servidorIds ! {finalizar, self()},
     unregister(servidorIds),
     receive
-        ok -> ok ;
+        finalizado -> io:format("El servidor se cerro correctamente\n"); 
         _ -> error
     end.
 
 %%%%%%%%%%% Servidor
+%%%
 %% Función de servidor de nombres.
+
 serverinit(PInit) ->
     PInit ! ok,
     %% Comenzamos con un mapa nuevo, y un contador en 0.
@@ -78,25 +84,27 @@ servnombres(Map, N) ->
         %% Llega una petición para crear un Id para nombre
         #nuevoId{nombre = Nombre, clientid = ClientID} ->
             io:format("Entro al nuevo nickname\n"),
-            ClientID ! {ok, Nombre},
+            ClientID ! {nombreRegistrado, Nombre},
             servnombres(maps:put(Nombre,ClientID,Map), N + 1);
 
         %% Llega una petición para saber el nombre de tal Id
         {buscarId, NId, ClientID} ->
             case maps:find(NId, Map) of
-                {ok, Nombre} -> ClientID ! {ok, Nombre};
+                {idHallado, Nombre} -> ClientID ! {ok, Nombre};
                 error -> ClientID ! {err, notfound}
             end,
             servnombres(Map,N);
 
         %% Entrega la lista completa de Ids con Nombres.
         {verLista, ClientID} ->
-            ClientID ! {ok, maps:to_list(Map)},
+            ClientID ! {listaRecuperada, maps:to_list(Map)},
             servnombres(Map,N);
         
         %% Cerramos el servidor. Va gratis
+        
         {finalizar, ClientID } ->
-            ClientID ! ok;
+            ClientID ! finalizado;
+        
         _ -> io:format("DBG: otras cosas~n"),
              servnombres(Map,N)
     end.
