@@ -9,18 +9,20 @@
 -export([recepcionista/1,mozo/2]).
 
 -export([nicknames/1]).
-
+-export([scheduler/0]).
 
 
 %% abrirChat: Crear un socket, y ponerse a escuchar.
 abrirChat()->
 
-    %% register(servidor, self()),
-    case gen_tcp:listen(?Puerto, [ binary, {active, false},{backlog, ?MaxClients}]) of
+    %% register(servidor, self()), binary,
+    case gen_tcp:listen(?Puerto, [ {active, false},{backlog, ?MaxClients}]) of
     
         {ok, Socket} -> io:format("El chat ha abierto sus puertas\n"),
                         register(recepcionistaID,spawn(?MODULE, recepcionista, [Socket])),
-                        register(nicknames,spawn(?MODULE, nicknames,[maps:new()]));
+                        register(nicknames,spawn(?MODULE, nicknames,[maps:new()])),
+                        register(scheduler,spawn(?MODULE, scheduler,[]));
+
 
         {error, Reason} -> io:format("[SERVER] Ocurrio un error al intentar 
                                     escuchar ~p por la razon : ~p",[?Puerto,Reason])      
@@ -60,7 +62,34 @@ recepcionista(Socket) ->
 %% mozo: atiende al cliente.
 %%
 
-mozo(Socket,conNickname)->
+
+mozo(Socket,sinNickname) ->
+
+   gen_tcp:send(Socket, "[Server] Ingrese su nickname >> "),
+
+    case gen_tcp:recv(Socket, 0) of
+       
+       {ok, Nombre} ->
+          
+           io:format("[Server] El cliente ~p esta intentando ingresar el nickname ~p ~n",[Socket,Nombre]),
+           
+           scheduler ! {ingresarNickname, Nombre,Socket,self()},
+           
+           receive
+               ok->mozo(Socket,Nombre),
+                   ok;
+               _Error -> gen_tcp:send(Socket, "[Server]" ++ _Error ++" \n"),
+                         mozo(Socket,sinNickname)
+           end;
+           
+       
+       {error, closed} ->
+           io:format("El cliente cerró la conexión~n")
+   end;
+
+   
+
+mozo(Socket,_Nickname)->
    
    case gen_tcp:recv(Socket, 0) of
        
@@ -72,27 +101,7 @@ mozo(Socket,conNickname)->
        
        {error, closed} ->
            io:format("El cliente cerró la conexión~n")
-   end;
-
-
-mozo(Socket,sinNickname) ->
-   gen_tcp:send(Socket, <<"Ingrese su nickname >> ">>),
-
-    case gen_tcp:recv(Socket, 0) of
-       
-       {ok, Nombre} ->
-          
-           io:format("[Server] El cliente ~p esta intentando ingresar el nickname ~p ~n",[Socket,Paquete]),
-           nicknames ! {agregar, Nombre}
-           mozo(Socket,conNickname);
-       
-       {error, closed} ->
-           io:format("El cliente cerró la conexión~n")
-   end,
-
-   mozo(Socket,conNickname).
-
-
+   end.
 
 
 nicknames(Nicknames) ->
@@ -100,16 +109,16 @@ nicknames(Nicknames) ->
     
     receive
 
-        {agregar, Nombre, SockClient, ID} -> 
-
+        {agregar, Nombre, SockClient, SchedulerID} -> 
+            
             case maps:find(Nombre,Nicknames) of
 
-                {ok, _Socket}-> ID ! {error,"[Server] El nombre ya esta en uso\n"},
+                {ok, _Socket}-> SchedulerID ! {error,"[Server] El nombre ya esta en uso\n"},
                                 nicknames(Nicknames);
 
-                error -> NewMap=maps:put(Nombre,SockClient,Nicknames),
-                        ID ! {nickname,registrado,correctamente},
-                        nicknames(NewMap)
+                error -> NewMap = maps:put(Nombre,SockClient,Nicknames),
+                         SchedulerID ! {nickname,registrado,correctamente},
+                         nicknames(NewMap)
                                      
             end
         
@@ -118,4 +127,27 @@ nicknames(Nicknames) ->
     
 
 
+
+scheduler() ->
+
+    receive
+
+        {ingresarNickname, Nickname, Socket, MozoID} -> nickname ! {agregar, Nickname, Socket, self()},
+    
+            receive
+
+                {nickname,registrado,correctamente} -> MozoID ! ok;
+
+                _Error -> MozoID ! _Error
+
+            end;
+
+        {cambiarNickname,_NewNickname,_OldNickname}-> scheduler(),ok;
+        
+        {mensaje2All,_Nickname,_Msj} -> scheduler(),ok;
+
+        {mensajePrivado,_NicknameOrigen,_NicknameDestino,_Msj} -> scheduler(),ok;
+
+        {exit,_Nickname} -> scheduler(),ok
+    end.
 
