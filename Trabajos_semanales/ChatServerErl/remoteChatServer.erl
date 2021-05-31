@@ -1,10 +1,11 @@
 -module(remoteChatServer).
 
--define(Puerto, 1236).
+-define(Puerto, 1233).
 -define(MaxClients,25).
 
 -export([abrirChat/0,cerrarChat/0]).
 
+-export([showNicknames/0]).
 
 -export([recepcionista/1,mozo/2]).
 
@@ -18,7 +19,7 @@ abrirChat()->
     %% register(servidor, self()), binary,
     case gen_tcp:listen(?Puerto, [binary, {active, false},{backlog, ?MaxClients}]) of
     
-        {ok, Socket} -> io:format("[Server] El chat ha abierto sus puertas\n"),
+        {ok, Socket} -> io:format("[ChatServer] El chat ha abierto sus puertas\n"),
                         register(scheduler,spawn(?MODULE, scheduler,[Socket])),
                         register(clientes,spawn(?MODULE, clientes,[[],maps:new()])),
                         register(recepcionistaID,spawn(?MODULE, recepcionista, [Socket]));
@@ -71,21 +72,25 @@ recepcionista(Socket) ->
 %% mozo: atiende al cliente cuando este todavia no tiene nickname
 mozo(Socket,sinNickname) ->
 
-   gen_tcp:send(Socket, "[Server] Ingrese su nickname"),
+   gen_tcp:send(Socket, "[ChatServer] Ingrese su nickname"),
 
     case gen_tcp:recv(Socket, 1024) of
        {ok, Nombre} ->
-           io:format("este es el nombre ingresado >> ~p~n",[Nombre]),
            %N = binary_to_term(Nombre),
-           io:format("[Server] El cliente ~p esta intentando ingresar el nickname ~p ~n",[Socket,Nombre]),
+           %io:format("este es el nombre ingresado >> ~p~n",[N]),
+           %io:format("[ChatServer] El cliente ~p esta intentando ingresar el nickname ~p ~n",[Socket,Nombre]),
            scheduler ! {ingresarNickname, Nombre,Socket,self()},
            
            receive
 
-               nombreRegistrado->gen_tcp:send(Socket, "[Server] Su nickname ha sido otorgado con exito"),
+               nombreRegistrado->gen_tcp:send(Socket, "[ChatServer] Su nickname ha sido otorgado con exito"),
                                  mozo(Socket,Nombre);
                    
-               {errorAgregar, Error} -> gen_tcp:send(Socket, "[Server] " ++ Error),
+               {errorAgregar, Error} -> gen_tcp:send(Socket, "[ChatServer] " ++ Error),
+                                        mozo(Socket,sinNickname)
+            after
+
+                5000 -> gen_tcp:send(Socket, "[ChatServer] No se pudo ingresar su nombre" ),
                                         mozo(Socket,sinNickname)
            end;
            
@@ -104,8 +109,7 @@ mozo(Socket,Nickname)->
    
    case gen_tcp:recv(Socket, 0) of 
        {ok, Paquete} ->
-           %%refinar paqeute
-           %% identificar operacion  (Paquete == Operacion)
+           
            case obtener_hasta_espacio(Paquete) of
 
             {"/nickname",RestoPaquete}->
@@ -141,16 +145,17 @@ mozo(Socket,Nickname)->
     
 
             
-            
+            {[],[]} -> errorPaquete,
+                       mozo(Socket,Nickname);
+
             {_Mensaje1,_RestoMensaje} ->
                 scheduler ! {mensaje2All,Nickname,Paquete,self()},
                 receive
                     {mensaje,enviado,a,todos} -> mozo(Socket,Nickname)
-                end;
+                end
                
 
-            {[],[]} -> errorPaquete,
-                       mozo(Socket,Nickname)      
+               
         
         
            end;
@@ -181,7 +186,7 @@ clientes(Sockets,Nicknames_Sockets)->
             
             case maps:find(Nombre,Nicknames_Sockets) of
 
-                {ok, Socket}-> scheduler ! {errorAgregar,"[Server] El nombre ya esta en uso\n"},
+                {ok, Socket}-> scheduler ! {errorAgregar,"[ChatServer] El nombre ya esta en uso\n"},
                                 clientes(lists:delete(Socket,Sockets),Nicknames_Sockets);
 
                 error -> NewMap = maps:put(Nombre,SockClient,Nicknames_Sockets),
@@ -223,7 +228,9 @@ clientes(Sockets,Nicknames_Sockets)->
                          clientes(Sockets,Nicknames_Sockets);
 
         getSocketsList -> scheduler ! {allSocketsList,maps:values(Nicknames_Sockets) ++ Sockets},
-                         clientes(Sockets,Nicknames_Sockets)
+                         clientes(Sockets,Nicknames_Sockets);
+
+        {getNicknamesList, ID} -> ID ! {allNicknamesList,maps:keys(Nicknames_Sockets)} 
             
             
     end.
@@ -317,4 +324,14 @@ scheduler(SocketPrincipal) ->
 %%                         segunda componente el resto de la string 
 obtener_hasta_espacio(Paquete) ->
     lists:splitwith(fun (A) -> [A] /= " " end,Paquete).
+
+
+showNicknames() ->
+    clientes ! {getNicknamesList,self()},
+                    receive
+                        {allNicknamesList,Lista} -> 
+                        io:format("[ChatServer] Nicknames: ~p",[Lista])
+                    end.    
+                    
+
 
