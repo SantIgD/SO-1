@@ -8,7 +8,7 @@
 
 -export([recepcionista/1,mozo/2]).
 
--export([nicknames/2]).
+-export([nicknames/1]).
 -export([scheduler/1]).
 
 
@@ -24,49 +24,47 @@ abrirChat()->
                         register(scheduler,spawn(?MODULE, scheduler,[Socket]));
                    
 
-
         {error, Reason} -> io:format("[SERVER] Ocurrio un error al intentar 
                                     escuchar ~p por la razon : ~p",[?Puerto,Reason])      
     end.
 
 
-
+%
+%% fin: cierra el chat
 fin(_algo) ->
     scheduler ! {cerrar,socket},
     ok.
 
-%% recepcionista: Espera a los clientes y crea nuevos actores para atender los pedidos.
-%%
+
+%
+%% recepcionista: Espera a los clientes y crea nuevos
+%%                actores para atender los pedidos.
 recepcionista(Socket) ->
     
         case gen_tcp:accept(Socket) of
-            
             {ok, ClientSocket}  ->
                 
                 MozoID = spawn(?MODULE, mozo,[ClientSocket,sinNickname]),
-                mozos ! {registrarMozo, MozoID};
+                mozos ! {registrarMozo, MozoID},
+                recepcionista(Socket);
             
             {error, closed} ->
                 io:format("Se cerró el socket, nos vamos a mimir"),
                 exit(normal);
             
             {error, Reason} ->
-                io:format("Falló la espera del client por: ~p~n",[Reason])
+                io:format("Falló la espera del client por: ~p~n",[Reason]),
+                recepcionista(Socket)
             
-        end,
-        recepcionista(Socket).
-    %% end.
+        end.
 
-%% mozo: atiende al cliente.
-%%
-
-
+%
+%% mozo: atiende al cliente cuando este todavia no tiene nickname
 mozo(Socket,sinNickname) ->
 
    gen_tcp:send(Socket, "[Server] Ingrese su nickname"),
 
     case gen_tcp:recv(Socket, 1024) of
-       
        {ok, Nombre} ->
            io:format("este es el nombre ingresado >> ~p~n",[Nombre]),
            %N = binary_to_term(Nombre),
@@ -91,11 +89,11 @@ mozo(Socket,sinNickname) ->
    end;
 
    
-
+%
+%% mozo: atiende al cliente cuando este tiene nickname
 mozo(Socket,Nickname)->
    
-   case gen_tcp:recv(Socket, 0) of
-       
+   case gen_tcp:recv(Socket, 0) of 
        {ok, Paquete} ->
            %%refinar paqeute
            %% identificar operacion  (Paquete == Operacion)
@@ -159,12 +157,13 @@ mozo(Socket,Nickname)->
                     end
    end.
 
-
+%
+%% nicknames : El actor que ejecuta esta funcion
+%%             persiste un map de nickname-socketCliente
+%%             de los Clientes registrados
 nicknames(Nicknames) ->
 
-    
     receive
-
         {agregar, Nombre, SockClient} -> 
             
             case maps:find(Nombre,Nicknames) of
@@ -212,22 +211,15 @@ nicknames(Nicknames) ->
             
             
     end.
-                
-    
-
-
-
+%
+%% scheduler : Se encarga de ejecutar los servicios
+%%             que brinda el servidor
 scheduler(SocketPrincipal) ->
     
     receive
-
-        {stop,acepting} -> gen_tcp:close(SocketPrincipal),
-                           
-                           
+        {stop,acepting} -> gen_tcp:close(SocketPrincipal)                    
     after
-
         0 -> receive
-
             {ingresarNickname, Nickname, Socket, MozoID} -> nicknames ! {agregar, Nickname, Socket},
         
                 receive
@@ -280,15 +272,14 @@ scheduler(SocketPrincipal) ->
                 scheduler(SocketPrincipal);
 
             {mensaje2All,Nickname,Msj,MozoID} -> 
-            nicknames ! getSocketList,
-
-            receive
-                {socketList,Lista} -> 
-                    lists:foreach(fun (X) -> gen_tcp:send(X,"["++Nickname++"] "++ Msj) end,Lista),
-                        MozoID ! {mensaje,enviado,a,todos}
-            end,    
-            scheduler(SocketPrincipal);
-            
+                nicknames ! getSocketList,
+                receive
+                    {socketList,Lista} -> 
+                        lists:foreach(fun (X) -> gen_tcp:send(X,"["++Nickname++"] "++ Msj) end,Lista),
+                            MozoID ! {mensaje,enviado,a,todos}
+                end,    
+                scheduler(SocketPrincipal);
+                
             {exit,Nickname,MozoID} -> nicknames ! {remove,Nickname},
                                     receive
                                         nombreBorrado -> MozoID ! rip
@@ -297,7 +288,11 @@ scheduler(SocketPrincipal) ->
         end                         
     end.
 
-
+%
+%% obtener_hasta_espacio : Recibe una string y devuelve una tupla, 
+%%                         la cual en su primer componente tiene el
+%%                         string hasta el primer espacio, y en la
+%%                         segunda componente el resto de la string 
 obtener_hasta_espacio(Paquete) ->
     lists:splitwith(fun (A) -> [A] /= " " end,Paquete).
 
