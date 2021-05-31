@@ -1,6 +1,6 @@
 -module(remoteChatServer).
 
--define(Puerto, 1233).
+-define(Puerto, 1234).
 -define(MaxClients,25).
 
 -export([abrirChat/0,cerrarChat/0]).
@@ -17,7 +17,8 @@ abrirChat()->
     case gen_tcp:listen(?Puerto, [binary, {active, false},{backlog, ?MaxClients}]) of
     
         {ok, Socket} -> io:format("[ChatServer] El chat ha abierto sus puertas\n"),
-                        register(scheduler,spawn(?MODULE, scheduler,[Socket])),
+                        SchedulerID = spawn(?MODULE, scheduler,[Socket]),
+                        register(scheduler,SchedulerID),
                         register(clientes,spawn(?MODULE, clientes,[[],maps:new()])),
                         register(recepcionistaID,spawn(?MODULE, recepcionista, [Socket]));
                    
@@ -74,6 +75,15 @@ mozo(Socket,sinNickname) ->
     case gen_tcp:recv(Socket, 1024) of
        {ok, Nombre} ->
            N = bigbinary_to_term(Nombre),
+
+           if 
+               N == "/exit" -> 
+                   gen_tcp:send(Socket,"OK"),
+                   exit(normal);
+
+               true -> ok
+            end,
+                
            %N = binary_to_term(Nombre),
            %io:format("este es el nombre ingresado >> ~p~n",[N]),
            %io:format("[ChatServer] El cliente ~p esta intentando ingresar el nickname ~p ~n",[Socket,Nombre]),
@@ -102,8 +112,8 @@ mozo(Socket,sinNickname) ->
 mozo(Socket,Nickname)->
    
    case gen_tcp:recv(Socket, 0) of 
-       {ok, Paquete} ->
-           
+       {ok, N} ->
+           Paquete = bigbinary_to_term(N),
            case obtener_hasta_espacio(Paquete) of
 
             {"/nickname",RestoPaquete}->
@@ -119,6 +129,7 @@ mozo(Socket,Nickname)->
 
             {"/msg",RestoPaquete} -> 
                     {NicknameDestino ,Mensaje} = obtener_hasta_espacio(RestoPaquete),
+                    io:format("Nickname de origen = ~p ,Nickname de dest = ~p , mensaje = ~p~n",[Nickname,NicknameDestino,Mensaje]),
                     scheduler ! {mensajePrivado,Nickname,NicknameDestino,Mensaje,self()},
 
                     receive
@@ -147,10 +158,6 @@ mozo(Socket,Nickname)->
                 receive
                     {mensaje,enviado,a,todos} -> mozo(Socket,Nickname)
                 end
-               
-
-               
-        
         
            end;
         
@@ -168,16 +175,16 @@ mozo(Socket,Nickname)->
 
 bigbinary_to_term(Nombre)->
     Lista = binary_to_list(Nombre),
-    {ListaProcesada, Size} = get_up_to_2nd_0(Lista,[],0,0),
+    {ListaProcesada, Size} = get_up_to_0(Lista,[],0,0),
     binary_to_term(list_to_binary([131,107,0,Size]++ListaProcesada)).
 
 
-get_up_to_2nd_0([Hd|Tail],Resultado,ContSize,ContCeros) ->
+get_up_to_0([Hd|Tail],Resultado,ContSize,ContCeros) ->
     
     if Hd == 0 ->
         {Resultado,ContSize};
     
-        true -> get_up_to_2nd_0(Tail,Resultado ++ [Hd],ContSize+1,ContCeros)
+        true -> get_up_to_0(Tail,Resultado ++ [Hd],ContSize+1,ContCeros)
     end.
 
     
@@ -245,6 +252,9 @@ clientes(Sockets,Nicknames_Sockets)->
             
             
     end.
+
+
+
 %
 %% scheduler : Se encarga de ejecutar los servicios
 %%             que brinda el servidor
@@ -257,6 +267,7 @@ scheduler(SocketPrincipal) ->
                                     {allSocketsList,Lista} -> 
                                         lists:foreach(fun (X) -> gen_tcp:send(X,"shutdown") end,Lista),
                                         CerrarID ! {protocolo,cierre,activado}
+             
                                 end                    
     after
         0 -> receive
@@ -325,6 +336,8 @@ scheduler(SocketPrincipal) ->
                                             nombreBorrado -> MozoID ! rip
                                         end,
                                         scheduler(SocketPrincipal)
+             after
+                 1000 -> scheduler(SocketPrincipal)                     
              end                         
     end.
 
@@ -341,8 +354,8 @@ showNicknames() ->
     clientes ! {getNicknamesList,self()},
                     receive
                         {allNicknamesList,Lista} -> 
-                        io:format("[ChatServer] Nicknames: ~p",[Lista])
+                        io:format("[ChatServer] Nicknames: ~p\n",[Lista])
                     end.    
                     
 
-
+% lists:subtract(" Lucas Hi", " ") = "Lucas Hi"
