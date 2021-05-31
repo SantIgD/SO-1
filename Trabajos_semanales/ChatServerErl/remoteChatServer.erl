@@ -4,11 +4,8 @@
 -define(MaxClients,25).
 
 -export([abrirChat/0,cerrarChat/0]).
-
 -export([showNicknames/0]).
-
 -export([recepcionista/1,mozo/2]).
-
 -export([clientes/2]).
 -export([scheduler/1]).
 
@@ -76,21 +73,18 @@ mozo(Socket,sinNickname) ->
 
     case gen_tcp:recv(Socket, 1024) of
        {ok, Nombre} ->
+           N = bigbinary_to_term(Nombre),
            %N = binary_to_term(Nombre),
            %io:format("este es el nombre ingresado >> ~p~n",[N]),
            %io:format("[ChatServer] El cliente ~p esta intentando ingresar el nickname ~p ~n",[Socket,Nombre]),
-           scheduler ! {ingresarNickname, Nombre,Socket,self()},
+           scheduler ! {ingresarNickname, N,Socket,self()},
            
            receive
 
-               nombreRegistrado->gen_tcp:send(Socket, "[ChatServer] Su nickname ha sido otorgado con exito"),
-                                 mozo(Socket,Nombre);
+               nombreRegistrado->gen_tcp:send(Socket, "[ChatServer] Bienvenido al Chat ["++N++"]"),
+                                 mozo(Socket,N);
                    
                {errorAgregar, Error} -> gen_tcp:send(Socket, "[ChatServer] " ++ Error),
-                                        mozo(Socket,sinNickname)
-            after
-
-                5000 -> gen_tcp:send(Socket, "[ChatServer] No se pudo ingresar su nombre" ),
                                         mozo(Socket,sinNickname)
            end;
            
@@ -170,6 +164,23 @@ mozo(Socket,Nickname)->
                            exit(abnormal)
                     end
    end.
+
+
+bigbinary_to_term(Nombre)->
+    Lista = binary_to_list(Nombre),
+    {ListaProcesada, Size} = get_up_to_2nd_0(Lista,[],0,0),
+    binary_to_term(list_to_binary([131,107,0,Size]++ListaProcesada)).
+
+
+get_up_to_2nd_0([Hd|Tail],Resultado,ContSize,ContCeros) ->
+    
+    if Hd == 0 ->
+        {Resultado,ContSize};
+    
+        true -> get_up_to_2nd_0(Tail,Resultado ++ [Hd],ContSize+1,ContCeros)
+    end.
+
+    
 
 %
 %% clientes : El actor que ejecuta esta funcion persiste
