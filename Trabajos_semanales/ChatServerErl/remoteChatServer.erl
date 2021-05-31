@@ -3,7 +3,7 @@
 -define(Puerto, 1236).
 -define(MaxClients,25).
 
--export([abrirChat/0,cerrarChat/1]).
+-export([abrirChat/0,cerrarChat/0]).
 
 
 -export([recepcionista/1,mozo/2]).
@@ -30,8 +30,11 @@ abrirChat()->
 
 %
 %% cerrarChat: Cierra el chat
-cerrarChat(_algo) ->
-    scheduler ! {cerrar,socket},
+cerrarChat() ->
+    scheduler ! {stopAccepting, self()},
+    receive
+        {protocolo,cierre,activado} -> io:format("Se forzara el cierre a los clientes\n")
+    end,
     ok.
 
 
@@ -43,6 +46,14 @@ recepcionista(Socket) ->
         case gen_tcp:accept(Socket) of
 
             {ok, ClientSocket}  ->
+                clientes ! {nuevoCliente, ClientSocket},
+
+                receive 
+                    {socketClient,registrado} -> io:format("[ChatServer] Un cliente salvaje ha aparecido!\n");
+
+                    {error,Error} -> io:format("[ChatServer] No se ha podido registrar el cliente, error: ~p \n",[Error])
+                end,
+
                 spawn(?MODULE, mozo,[ClientSocket,sinNickname]),
                 recepcionista(Socket);
             
@@ -170,8 +181,8 @@ clientes(Sockets,Nicknames_Sockets)->
             
             case maps:find(Nombre,Nicknames_Sockets) of
 
-                {ok, _Socket}-> scheduler ! {errorAgregar,"[Server] El nombre ya esta en uso\n"},
-                                clientes(Sockets,Nicknames_Sockets);
+                {ok, Socket}-> scheduler ! {errorAgregar,"[Server] El nombre ya esta en uso\n"},
+                                clientes(lists:delete(Socket,Sockets),Nicknames_Sockets);
 
                 error -> NewMap = maps:put(Nombre,SockClient,Nicknames_Sockets),
                          scheduler ! {nickname,registrado,correctamente},
@@ -208,7 +219,10 @@ clientes(Sockets,Nicknames_Sockets)->
                               scheduler ! nombreBorrado,
                               clientes(Sockets,NewNicknames);
         
-        getSocketList -> scheduler ! {socketList,maps:values(Nicknames_Sockets)},
+        getNamedSocketList -> scheduler ! {namedSocketsList,maps:values(Nicknames_Sockets)},
+                         clientes(Sockets,Nicknames_Sockets);
+
+        getSocketsList -> scheduler ! {allSocketsList,maps:values(Nicknames_Sockets) ++ Sockets},
                          clientes(Sockets,Nicknames_Sockets)
             
             
@@ -219,75 +233,81 @@ clientes(Sockets,Nicknames_Sockets)->
 scheduler(SocketPrincipal) ->
     
     receive
-        {stop,acepting} -> gen_tcp:close(SocketPrincipal)                    
+        {stopAcepting,CerrarID} -> gen_tcp:close(SocketPrincipal),
+                           clientes ! getSocketsList,
+                                receive
+                                    {allSocketsList,Lista} -> 
+                                        lists:foreach(fun (X) -> gen_tcp:send(X,"shutdown") end,Lista),
+                                        CerrarID ! {protocolo,cierre,activado}
+                                end                    
     after
         0 -> receive
-            {ingresarNickname, Nickname, Socket, MozoID} -> clientes ! {agregar, Nickname, Socket},
-        
-                receive
+                {ingresarNickname, Nickname, Socket, MozoID} -> clientes ! {agregar, Nickname, Socket},
+            
+                    receive
 
-                    {nickname,registrado,correctamente} -> MozoID ! nombreRegistrado; 
-                                                        %  Notificar a todos el nombre ingresado
+                        {nickname,registrado,correctamente} -> MozoID ! nombreRegistrado; 
+                                                            %  Notificar a todos el nombre ingresado
 
-                    {errorAgregar, Error} -> MozoID !  {errorAgregar, Error}
+                        {errorAgregar, Error} -> MozoID !  {errorAgregar, Error}
+                                                        
+
+
+                    end,
+                    scheduler(SocketPrincipal);
+
+                
+                
+                
+                {cambiarNickname,NewNickname,OldNickname,MozoID}-> 
+                    
+                    clientes ! {changeKey,NewNickname,OldNickname},
+
+                    receive
+
+                        {nickname,actualizado,correctamente} -> MozoID ! nombreActualizado; 
+                                                            %  Notificar a todos el nombre ingresado
+
+                        {no,se,actualizo,el,nickname} -> MozoID !  nombreViejo
+                                                            %  Notificar a todos el nombre ingresado
+
+                    end,
+                    
+                    scheduler(SocketPrincipal);
+                
+                
+
+                {mensajePrivado,NicknameOrigen,NicknameDestino,Msj,MozoID} -> 
+                    
+                    clientes ! {getSocket,NicknameDestino},
+                    
+                    receive
+
+                        {socketObtenido, Socket} -> gen_tcp:send(Socket,"["++NicknameOrigen++"] "++ Msj),
+                                                    MozoID ! mesajePrivadoEnviado;
                                                     
 
-
-                end,
-                scheduler(SocketPrincipal);
-
-            
-            
-            
-            {cambiarNickname,NewNickname,OldNickname,MozoID}-> 
+                        {no,se,encontro,el,nickname} -> MozoID ! nicknameNoEncontrado
+                                                    
+                    end,
                 
-                clientes ! {changeKey,NewNickname,OldNickname},
+                    scheduler(SocketPrincipal);
 
-                receive
-
-                    {nickname,actualizado,correctamente} -> MozoID ! nombreActualizado; 
-                                                        %  Notificar a todos el nombre ingresado
-
-                    {no,se,actualizo,el,nickname} -> MozoID !  nombreViejo
-                                                        %  Notificar a todos el nombre ingresado
-
-                end,
-                
-                scheduler(SocketPrincipal);
-            
-            
-
-            {mensajePrivado,NicknameOrigen,NicknameDestino,Msj,MozoID} -> 
-                
-                clientes ! {getSocket,NicknameDestino},
-                
-                receive
-
-                    {socketObtenido, Socket} -> gen_tcp:send(Socket,"["++NicknameOrigen++"] "++ Msj),
-                                                MozoID ! mesajePrivadoEnviado;
-                                                
-
-                    {no,se,encontro,el,nickname} -> MozoID ! nicknameNoEncontrado
-                                                
-                end,
-            
-                scheduler(SocketPrincipal);
-
-            {mensaje2All,Nickname,Msj,MozoID} -> 
-                clientes ! getSocketList,
-                receive
-                    {socketList,Lista} -> 
-                        lists:foreach(fun (X) -> gen_tcp:send(X,"["++Nickname++"] "++ Msj) end,Lista),
-                            MozoID ! {mensaje,enviado,a,todos}
-                end,    
-                scheduler(SocketPrincipal);
-                
-            {exit,Nickname,MozoID} -> clientes ! {remove,Nickname},
-                                    receive
-                                        nombreBorrado -> MozoID ! rip
-                                    end,
-                                    scheduler(SocketPrincipal)
-        end                         
+                {mensaje2All,Nickname,Msj,MozoID} -> 
+                    clientes ! getNamedSocketList,
+                    receive
+                        {namedSocketsList,Lista} -> 
+                            lists:foreach(fun (X) -> gen_tcp:send(X,"["++Nickname++"] "++ Msj) end,Lista),
+                                MozoID ! {mensaje,enviado,a,todos}
+                    end,    
+                    scheduler(SocketPrincipal);
+                    
+                {exit,Nickname,MozoID} -> clientes ! {remove,Nickname},
+                                        receive
+                                            nombreBorrado -> MozoID ! rip
+                                        end,
+                                        scheduler(SocketPrincipal)
+             end                         
     end.
 
 %
@@ -297,10 +317,4 @@ scheduler(SocketPrincipal) ->
 %%                         segunda componente el resto de la string 
 obtener_hasta_espacio(Paquete) ->
     lists:splitwith(fun (A) -> [A] /= " " end,Paquete).
-
-
-%
-%% clientes_init : Persiste una lista con los clientes 
-%%                 que todavia no tienen nickname
-clientes_init() ->
 
