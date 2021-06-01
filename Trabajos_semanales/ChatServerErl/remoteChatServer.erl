@@ -40,7 +40,7 @@ cerrarChat() ->
 %%                actores para atender los pedidos.
 recepcionista(Socket) ->
     
-        case gen_tcp:accept(Socket) of
+        case gen_tcp:accept(Socket,500) of
 
             {ok, ClientSocket}  ->
                 clientes ! {nuevoCliente, ClientSocket},
@@ -58,8 +58,12 @@ recepcionista(Socket) ->
                 io:format("[ChatServer] Se cerró el socket, nos vamos a mimir");
                
                 
-            {error, Reason} ->
-                io:format("[ChatServer] Error : ~p\n",[Reason])
+            {error, _Reason} ->
+                Response = getServerState(),
+                if  Response == {closed,empty} -> exit(normal);
+                true -> recepcionista(Socket)
+                end
+
             
         end.
 
@@ -237,7 +241,7 @@ clientes(Sockets,Nicknames_Sockets)->
                                           scheduler ! nombreBorrado,
                                           clientes(Sockets,NewNicknames);
                     
-                    getNamedSocketList -> scheduler ! {namedSocketsList,maps:values(Nicknames_Sockets)},
+                    getNamedSocketsList -> scheduler ! {namedSocketsList,maps:values(Nicknames_Sockets)},
                                      clientes(Sockets,Nicknames_Sockets);
 
                     getSocketsList -> scheduler ! {socketsList,maps:values(Nicknames_Sockets)++Sockets},
@@ -255,7 +259,7 @@ clientes(Sockets,Nicknames_Sockets)->
 %
 %% scheduler : Se encarga de ejecutar los servicios
 %%             que brinda el servidor
-scheduler(SocketPrincipal,State) when State == alive->
+scheduler(SocketPrincipal,State) when State == open->
     
     receive
         stopAccepting -> 
@@ -282,7 +286,7 @@ scheduler(SocketPrincipal,State) when State == alive->
 
 
                     end,
-                    scheduler(SocketPrincipal,alive);
+                    scheduler(SocketPrincipal,open);
 
                 
                 
@@ -301,7 +305,7 @@ scheduler(SocketPrincipal,State) when State == alive->
 
                     end,
                     
-                    scheduler(SocketPrincipal,alive);
+                    scheduler(SocketPrincipal,open);
                 
                 
 
@@ -319,30 +323,31 @@ scheduler(SocketPrincipal,State) when State == alive->
                                                     
                     end,
                 
-                    scheduler(SocketPrincipal,alive);
+                    scheduler(SocketPrincipal,open);
 
                 {mensaje2All,Nickname,Msj,MozoID} -> 
-                    clientes ! getNamedSocketList,
+                    clientes ! getNamedSocketsList,
                     receive
                         {namedSocketsList,Lista} -> 
                             lists:foreach(fun (X) -> gen_tcp:send(X,"["++Nickname++"] "++ Msj) end,Lista),
                                 MozoID ! {mensaje,enviado,a,todos}
                     end,    
-                    scheduler(SocketPrincipal,alive);
+                    scheduler(SocketPrincipal,open);
                     
                 {closeClient,Nickname,MozoID} -> clientes ! {remove,Nickname},
                                         receive
                                             nombreBorrado -> MozoID ! rip
                                         end,
-                                        scheduler(SocketPrincipal,alive)
+                                        scheduler(SocketPrincipal,open);
+                {getState,ID} -> ID ! State
              after
-                 1000 -> scheduler(SocketPrincipal,alive)                     
+                 1000 -> scheduler(SocketPrincipal,open)                     
              end                         
     end;
 
-scheduler(SocketPrincipal,State) when State == diying->
+scheduler(SocketPrincipal,State) when State == closed->
     
-    clientes ! getNamedSOcketsList,
+    clientes ! getNamedSocketsList,
 
     receive 
         {namedSocketsList,List} ->
@@ -357,7 +362,9 @@ scheduler(SocketPrincipal,State) when State == diying->
                                         receive
                                             nombreBorrado -> MozoID ! rip
                                         end,
-                                        scheduler(SocketPrincipal,dead)        
+                                        scheduler(SocketPrincipal,closed);
+
+        {getState,ID} -> ID ! {schedulerState,State}
     end.
 
 
@@ -398,6 +405,27 @@ get_up_to_0([Hd|Tail],Resultado,ContSize) ->
         {Resultado,ContSize};
     
         true -> get_up_to_0(Tail,Resultado ++ [Hd],ContSize+1)
+    end.
+
+
+
+
+getServerState() ->
+
+    scheduler ! {getState,self()},
+
+    receive
+
+        {schedulerState,State} -> 
+
+            clientes ! getNamedSocketsList,
+
+            receive 
+                {namedSocketsList,List} ->
+                    if (List == []) -> {State,empty};
+                    true -> {State,nonEmpty}
+                    end
+            end
     end.
 
     
