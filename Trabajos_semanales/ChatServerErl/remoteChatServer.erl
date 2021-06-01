@@ -1,6 +1,6 @@
 -module(remoteChatServer).
 
--define(Puerto, 1262).
+-define(Puerto, 1234).
 -define(MaxClients,25).
 
 -export([abrirChat/0,cerrarChat/0]).
@@ -17,7 +17,7 @@ abrirChat()->
     case gen_tcp:listen(?Puerto, [binary, {active, false},{backlog, ?MaxClients}]) of
     
         {ok, Socket} -> io:format("[ChatServer] El chat ha abierto sus puertas\n"),
-                        SchedulerID = spawn(?MODULE, scheduler,[Socket]),
+                        SchedulerID = spawn(?MODULE, scheduler,[Socket,open]),
                         register(scheduler,SchedulerID),
                         register(clientes,spawn(?MODULE, clientes,[[],maps:new()])),
                         register(recepcionistaID,spawn(?MODULE, recepcionista, [Socket]));
@@ -39,10 +39,11 @@ cerrarChat() ->
 %% recepcionista: Espera a los clientes y crea nuevos
 %%                actores para atender los pedidos.
 recepcionista(Socket) ->
-    
+        
         case gen_tcp:accept(Socket,500) of
 
             {ok, ClientSocket}  ->
+                io:format("[ChatServer] Ingreso un nuevo cliente, esperando a la respuesta del cliente\n"),
                 clientes ! {nuevoCliente, ClientSocket},
 
                 receive 
@@ -59,13 +60,34 @@ recepcionista(Socket) ->
                
                 
             {error, _Reason} ->
-                Response = getServerState(),
-                if  Response == {closed,empty} -> exit(normal);
-                true -> recepcionista(Socket)
+                
+                Response = {ServerState,_ClientState} = getServerState(),
+                io:format("SALIO DEL GETSER ~p\n",[Response]),
+                
+                if  Response == {closed,empty} -> gen_tcp:close(Socket),
+                                                  scheduler ! salir,
+                                                  exit(normal);
+
+                    ServerState == closed -> esperando_salida_clientes(Socket);
+                    
+                    
+                    true -> recepcionista(Socket)
                 end
 
-            
         end.
+
+
+esperando_salida_clientes(Socket) ->
+    {_ServerState,ClientState} = getServerState(),
+    io:format("2 SALIO DEL GETSER\n"),
+    if ClientState == empty ->
+        gen_tcp:close(Socket),
+        scheduler ! salir,
+        exit(normal);
+
+    true -> esperando_salida_clientes(Socket)
+    end.
+
 
 %
 %% mozo: atiende al cliente cuando este todavia no tiene nickname
@@ -182,7 +204,7 @@ mozo(Socket,Nickname)->
 %%            una lista de Sockets y un map de Nickname-Socket
 %%            de los Clientes registrados
 clientes(Sockets,Nicknames_Sockets)->
-       
+    
     receive
         stopAccepting-> unregister(clientes),
                         exit(normal)
@@ -241,7 +263,9 @@ clientes(Sockets,Nicknames_Sockets)->
                                           scheduler ! nombreBorrado,
                                           clientes(Sockets,NewNicknames);
                     
-                    getNamedSocketsList -> scheduler ! {namedSocketsList,maps:values(Nicknames_Sockets)},
+                    {getNamedSocketsList,ID} ->
+                    ID ! {namedSocketsList,maps:values(Nicknames_Sockets)},
+                                    
                                      clientes(Sockets,Nicknames_Sockets);
 
                     getSocketsList -> scheduler ! {socketsList,maps:values(Nicknames_Sockets)++Sockets},
@@ -263,14 +287,13 @@ scheduler(SocketPrincipal,State) when State == open->
     
     receive
         stopAccepting -> 
-                           %gen_tcp:close(SocketPrincipal)
-                           %%gen_tcp:close(SocketPrincipal),
-                           %%unregister(recepcionistaID),
-                           clientes ! getSocketList,
-                           
+                           clientes ! getSocketsList,
+                           io:format("ENtro al stopAcc\n"),
                                 receive
                                    {socketsList,Lista} -> 
-                                   lists:foreach(fun (X) -> gen_tcp:send(X,"shutdown") end,Lista)   
+                                    
+                                   lists:foreach(fun (X) -> gen_tcp:send(X,"shutdown") end,Lista),
+                                   scheduler(SocketPrincipal,closed)  
                                 end                    
     after
         0 -> receive
@@ -282,14 +305,9 @@ scheduler(SocketPrincipal,State) when State == open->
                                                             %  Notificar a todos el nombre ingresado
 
                         {errorAgregar, Error} -> MozoID !  {errorAgregar, Error}
-                                                      
-
 
                     end,
                     scheduler(SocketPrincipal,open);
-
-                
-                
                 
                 {cambiarNickname,NewNickname,OldNickname,MozoID}-> 
                     
@@ -326,7 +344,7 @@ scheduler(SocketPrincipal,State) when State == open->
                     scheduler(SocketPrincipal,open);
 
                 {mensaje2All,Nickname,Msj,MozoID} -> 
-                    clientes ! getNamedSocketsList,
+                    clientes ! {getNamedSocketsList,self()},
                     receive
                         {namedSocketsList,Lista} -> 
                             lists:foreach(fun (X) -> gen_tcp:send(X,"["++Nickname++"] "++ Msj) end,Lista),
@@ -339,7 +357,8 @@ scheduler(SocketPrincipal,State) when State == open->
                                             nombreBorrado -> MozoID ! rip
                                         end,
                                         scheduler(SocketPrincipal,open);
-                {getState,ID} -> ID ! State
+                {getState,ID} -> ID ! {schedulerState,State},
+                                scheduler(SocketPrincipal,State)
              after
                  1000 -> scheduler(SocketPrincipal,open)                     
              end                         
@@ -347,14 +366,17 @@ scheduler(SocketPrincipal,State) when State == open->
 
 scheduler(SocketPrincipal,State) when State == closed->
     
-    clientes ! getNamedSocketsList,
+    io:format("Entro al closed\n"),
+    clientes ! {getNamedSocketsList,self()},
 
     receive 
         {namedSocketsList,List} ->
-            if (List == []) -> exit(normal);
+            if List == [] -> recepcionistaID ! {schedulerState,State};
             true -> ok % Faltan eliminar clientes
             end
     end,
+
+    io:format("SIGUE VIVO\n"),
 
     receive
 
@@ -364,7 +386,10 @@ scheduler(SocketPrincipal,State) when State == closed->
                                         end,
                                         scheduler(SocketPrincipal,closed);
 
-        {getState,ID} -> ID ! {schedulerState,State}
+        {getState,ID} -> ID ! {schedulerState,State},
+                        scheduler(SocketPrincipal,State);
+
+        salir -> exit(normal) 
     end.
 
 
@@ -414,15 +439,17 @@ getServerState() ->
 
     scheduler ! {getState,self()},
 
+    io:format("Se envio getserstate\n"),
+
     receive
 
         {schedulerState,State} -> 
-
-            clientes ! getNamedSocketsList,
-
+            
+            clientes ! {getNamedSocketsList,self()},
+            io:format("Se envio getNamedSocketsList\n"),
             receive 
                 {namedSocketsList,List} ->
-                    if (List == []) -> {State,empty};
+                    if List == [] -> {State,empty};
                     true -> {State,nonEmpty}
                     end
             end
