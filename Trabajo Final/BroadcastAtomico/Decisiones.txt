@@ -9,3 +9,14 @@ CantM es la cantidad de mensajes a recibir.
 
 Por ahora lo estasmos haciendo con 4 nodos, tenemos que preguntar si se hacen con mas o como se
 simularia.
+
+
+Cada nodo almacena toda el historial de mensajes.
+
+
+No aceptaremos que nodos se sumen a el servidor una vez qque este en funcionamiento. - Preguntar
+
+
+Guardar nombre de nodos en el assender para saber de quien esperamos respuesta por si se muere
+asi le hacemos un funeral piola paaaaa
+

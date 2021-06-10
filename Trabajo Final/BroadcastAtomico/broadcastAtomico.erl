@@ -1,6 +1,6 @@
 -module(broadcastAtomico).
 
--include("broadcastAtomico.hrl").
+%%-include("broadcastAtomico.hrl").
 
 %%Libreria de control
 -export([start/0,stop/0]).
@@ -12,32 +12,37 @@
 
 -define(Nodos,4).
 
+-record(paqueteSinOrden, {msg,identificador,ordenPropuesto}).
+
 start() ->
 
-    register(sequencer, spawn(?MODULE, aSecuencer,[dict:new(),0,0,1,0])),
+    register(sequencer, spawn(?MODULE, aSequencer,[dict:new(),0,0,0,0])),
     register(deliver,   spawn(?MODULE, aDeliver  ,[])),
     register(sender,    spawn(?MODULE, aSender   ,[0,dict:new()])),
+    
     ok.
 
 stop() ->
+
+    sequencer ! fin,
+    deliver   ! fin,
+    sender    ! fin,
+
+    unregister(sequencer),
+    unregister(deliver),
+    unregister(sender),
+
     ok.
-
-
-proposalColector(Lista)
-    receive
-
-    ->ok
-    end.
 
 aBroadcast(Mensaje) ->
    
-    sender ! Mensaje,
+    sender ! {msg, Mensaje},
     ok.
 
 
-contarElementos([Hd])->
-    1.
-contarElementos([Hd|Tl])->
+contarElementos([_Hd])->
+    1;
+contarElementos([_Hd|Tl])->
     1 + contarElementos([Tl]).
 
 
@@ -47,44 +52,43 @@ aSender(CantMensajesEnviados,DicMsgToSend) ->
         
         fin -> exit(normal);
 
-        Mensaje -> 
+        {msg, Mensaje} -> 
 
-        sequencer ! {getPaquetInfo, Mensaje, CantMensajesEnviados + 1},
+        sequencer ! {crearPaqueteSO, Mensaje, CantMensajesEnviados + 1},
 
-        receive
+            receive
 
-            {paquetInfo,OrdenMaximoAcordado} ->
-                    PaqueteSO = #paqueteSinOrden{msg = Mensaje
-                                               ,claveMensaje = {node(),CantMensajesEnviados}
-                                               ,ultimoOrdenAcordado = OrdenMaximoAcordado},
+                {paqueteSO,PaqueteSO} ->
+                        Nodes = nodes(),
+                        CantPropuestasARecebir = contarElementos(Nodes),
 
-                    CantPropuestasARecebir = contarElementos(nodes()),
+                        NewDic = dict:store(PaqueteSO#paqueteSinOrden.identificador
+                                , {CantPropuestasARecebir,[]}
+                                , DicMsgToSend),
 
-                    NewDic = dict:append(PaqueteSO#paqueteSinOrden.claveMensaje
-                            , {CantPropuestasARecebir,[]}
-                            , DicMsgToSend),
+                    lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,Nodes),
+                    
+                    aSender(CantMensajesEnviados+1,NewDic)
+            end;
 
-                lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,nodes())
-        end,
-
-        aSender(CantMensajesEnviados,NewDic);
-
-        
         {propuestaOrden, PropuestaOrden, IdentificadorMensaje} ->
 
-            case dict:find(IdentificadorMensaje, DicMsgToSend)
+            case dict:find(IdentificadorMensaje, DicMsgToSend) of 
+
                 {ok, Value} ->
+
                     {CantPropuestasARecebir,ListaPropuestas} = Value,
                     PropToReceive = CantPropuestasARecebir - 1,
                     ListaPrima = ListaPropuestas ++ [PropuestaOrden],
 
                     if 
                         (PropToReceive == 0) ->
-                                            PropuestaAcordada = lists:max(ListaPrima),
-                                            NewDic = dict:erase(IdentificadorMensaje, DicMsgToSend)
-                                            lists:foreach(fun(X) -> {sequencer , X } ! {PropuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
-                                            sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada},
-                                            aSender(CantMensajesEnviados,NewDic);   
+
+                                PropuestaAcordada = lists:max(ListaPrima),
+                                NewDic = dict:erase(IdentificadorMensaje, DicMsgToSend),
+                                lists:foreach(fun(X) -> {sequencer , X } ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
+                                sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada},
+                                aSender(CantMensajesEnviados,NewDic);   
                 
                         true->
                             NewDic = dict:store(IdentificadorMensaje
@@ -104,18 +108,37 @@ aSender(CantMensajesEnviados,DicMsgToSend) ->
 aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO)-> 
 
     receive
-        {askingForOrder,Paquete} when is_record(Paquete,paqueteSinOrden) -> 
+
+        {crearPaqueteSO, Mensaje, CantMensajesEnviados} -> 
+
+            PaqueteSO = #paqueteSinOrden{msg = Mensaje
+                        , identificador = {node(),CantMensajesEnviados}
+                        , ordenPropuesto = OrdenMaximoPropuesto},
+
+
+            sender ! {paqueteSO,PaqueteSO},
+                        
+
+            NewDic    = dict:store(PaqueteSO#paqueteSinOrden.identificador
+                        , {PaqueteSO#paqueteSinOrden.msg,PaqueteSO#paqueteSinOrden.ordenPropuesto}
+                        , DicMensajes),
+
+            aSequencer(NewDic,OrdenMaximoAcordado,OrdenMaximoPropuesto + 1, OrdenActual, TO);
+    
+
+        {askingForOrder, Paquete} when is_record(Paquete,paqueteSinOrden) -> 
             
-            %% [clave = {Nodo,CantMensajesEnviados}] => {Mensaje , propuestaValor}   , valorDefinitivo => Mensaje
-            PropuestaOrden = lists:max([OrdenMaximoPropuesto,Paquete#paqueteSinOrden.ultimoOrdenAcordado]) + 1,
-            {Nodo,_} = Paquete#paqueteSinOrden.claveMensaje,            
-            {sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.claveMensaje},
+            PropuestaOrden = lists:max([OrdenMaximoPropuesto,Paquete#paqueteSinOrden.ordenPropuesto]) + 1,
 
-            dict:append(PaqueteSO#paqueteSinOrden.claveMensaje
-                            , {PaqueteSO#paqueteSinOrden.msg, PropuestaOrden}
-                            , DicMensajes),
+            {Nodo,_} = Paquete#paqueteSinOrden.identificador,            
+            {sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador},
 
-            aSequencer(DicMensajes, OrdenMaximoAcordado, PropuestaOrden);
+            NewDic = dict:store(Paquete#paqueteSinOrden.identificador
+                        ,{Paquete#paqueteSinOrden.msg, PropuestaOrden}
+                        , DicMensajes),
+
+            %%ojo aca
+            aSequencer(NewDic, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO);
 
 
         {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} ->
@@ -123,33 +146,37 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
                 NewOrdenMaxAcor = lists:max([PropuestaAcordada,OrdenMaximoAcordado]),
                 case dict:find(IdentificadorMensaje, DicMensajes) of
 
-                {ok, Msg} ->
+                {ok, {Mensaje,_OrdenPropuesto}} ->
 
-                    {Mensaje,_OrdenPropuesto} = Msg,
-                    AuxDic = dict:erase(IdentificadorMensaje, DicMsgToSend)   
-
+                    AuxDic = dict:erase(IdentificadorMensaje, DicMensajes),
                     NewDic = dict:store(PropuestaAcordada
-                                    , Msg
+                                    , Mensaje
                                     , AuxDic),
                     
-                    aSequencer(NewDic,NewOrdenMaxAcor,OrdenMaximoPropuesto);
+                    aSequencer(NewDic,NewOrdenMaxAcor,OrdenMaximoPropuesto, OrdenActual, 0);
                    
                 error ->
-                    error
-                end,
-                
+                    error;
 
-        {getPaquetInfo, Mensaje, CantMensajesEnviados} -> sender ! {paquetInfo,OrdenMaximoAcordado},
-                        PaqueteSO = #paqueteSinOrden{msg = Mensaje
-                                               ,claveMensaje = {node(),CantMensajesEnviados}
-                                               ,ultimoOrdenAcordado = OrdenMaximoPropuesto},
+                Other -> io:format("ME LLEGO ~p~n",[Other])
+                end
+        after 
+            
+            %% Tratamos de mandar a Deliver
+            TO -> 
+                case dict:find(OrdenActual+1, DicMensajes) of
 
-                        dict:append(PaqueteSO#paqueteSinOrden.claveMensaje
-                            , {PaqueteSO#paqueteSinOrden.msg,PaqueteSO#paqueteSinOrden.ultimoOrdenAcordado}
-                            , DicMensajes),
+                    {ok, Msg} ->
+                                deliver ! Msg,
+                                NewDic = dict:erase(OrdenActual+1, DicMensajes),
+                                aSequencer(NewDic,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual + 1, 0);
+            
+                    error -> aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual,infinity)
+                end     
 
-                        aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto + 1)
-    end.
+        end.
+
+
 
 aDeliver() ->
 
