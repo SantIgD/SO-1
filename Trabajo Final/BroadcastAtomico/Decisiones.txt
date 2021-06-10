@@ -1,0 +1,11 @@
+Suponemos que todos los nodos estan en funcionamiento.
+
+Por ahora vamos a resolver el algoritmo sin tener en cuenta que se puedan caer nodos
+
+Ibamos a hacer un proceso paralelo para la recepcion de cada mensaje pero lo vimos inviable,
+ya que deberiamos registrar y de-registrar nuevos atomos a los nuevos IDs por lo mismo decidimos
+usar una estructura que almacene los identificadores de mensajes con una tupla que sea {Mensaje, CantM}
+CantM es la cantidad de mensajes a recibir.
+
+Por ahora lo estasmos haciendo con 4 nodos, tenemos que preguntar si se hacen con mas o como se
+simularia.
