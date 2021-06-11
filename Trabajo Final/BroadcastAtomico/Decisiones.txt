@@ -20,3 +20,26 @@ No aceptaremos que nodos se sumen a el servidor una vez qque este en funcionamie
 Guardar nombre de nodos en el assender para saber de quien esperamos respuesta por si se muere
 asi le hacemos un funeral piola paaaaa
 
+
+Implementamos el algoritmo.
+
+Vamos a hacerlo robusto, comenzamos desde lo macro... analizamos los nodos en la red.
+
+Nos importa quien se cae
+
+
+
+Cual es el problema de que se caigan los nodos? 
+
+Decidimos que si se cae mas del 25% de los nodos, se cierra el servicio.
+
+
+
+Para ejecutarlo bien: 
+
+1 - Crear los nodos con los nombres nodo1,nodo2,...,nodoN
+2 - Link() desde un unico nodo
+3 - Start() 
+
+
+

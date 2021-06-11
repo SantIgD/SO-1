@@ -8,8 +8,8 @@
 %%Libreria de acceso
 -export([aBroadcast/1]).
 
--export([aDeliver/0,aSequencer/5,aSender/2]).
--export([contarElementos/1]).
+-export([aDeliver/0,aSequencer/5,aSender/3]).
+-export([contarElementos/1,link_nodos/2]).
 -define(Nodos,4).
 
 -record(paqueteSinOrden, {msg,identificador,ordenPropuesto}).
@@ -20,9 +20,19 @@ start() ->
     io:format("Se inicia el nodo ~p~n",[node()]),
     register(sequencer, spawn(?MODULE, aSequencer,[dict:new(),0,0,0,0])),
     register(deliver,   spawn(?MODULE, aDeliver  ,[])),
-    register(sender,    spawn(?MODULE, aSender   ,[0,dict:new()])),
+    register(sender,    spawn(?MODULE, aSender   ,[0,dict:new(),0])),
     
     ok.
+
+
+
+link_nodos(1,PCName) ->
+    net_adm:ping(list_to_atom("nodo1@"++PCName));
+
+link_nodos(N,PCName) ->    
+    net_adm:ping(list_to_atom("nodo"++integer_to_list(N)++"@"++PCName)),
+    link_nodos(N-1,PCName).
+
 
 %%stop() se encarga de parar el nodo
 stop() ->
@@ -42,17 +52,24 @@ aBroadcast(Mensaje) ->
     sender ! {msg, Mensaje},
     ok.
 
-%%contarElementos cuenta la cantidad de elementos de un lista
-contarElementos([]) ->
-    0;  
-contarElementos([_Hd|Tl])->
-    1 + contarElementos(Tl).
 
+aSender(CantMensajesEnviados,DicMsgToSend,0)->
+    
+    Nodes = nodes(),
+    lists:foreach(fun(X) -> monitor_node(X,true) end, Nodes),
+    aSender(CantMensajesEnviados,DicMsgToSend,1);
 
-aSender(CantMensajesEnviados,DicMsgToSend) ->
+aSender(CantMensajesEnviados,DicMsgToSend,1) ->
     
     receive 
         fin -> exit(normal);
+        
+
+        {nodedown, _Node} ->
+            ok;
+
+        {stop, _Node} -> ok;   
+
         {msg, Mensaje} -> 
 
             io:format("[sender] Se inicia el protocolo de envio de >~p<~n",[Mensaje]),
@@ -60,39 +77,44 @@ aSender(CantMensajesEnviados,DicMsgToSend) ->
             sequencer ! {crearPaqueteSO, Mensaje, CantMensajesEnviados + 1},
 
             receive
+
                 {paqueteSO,PaqueteSO} ->
+                        
                         io:format("[sender] Recibimos el paqueteSinOrden ~p~n",[PaqueteSO]),
+                        
                         Nodes = nodes(),
+
                         CantPropuestasARecebir = contarElementos(Nodes),
 
                         io:format("[sender] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),
 
                         NewDic = dict:store(PaqueteSO#paqueteSinOrden.identificador
-                                , {CantPropuestasARecebir,[]}
+                                , {CantPropuestasARecebir,[],Nodes}
                                 , DicMsgToSend),
 
                         io:format("[sender] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
 
                     lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,Nodes),
                     
-                    aSender(CantMensajesEnviados+1,NewDic)
+                    aSender(CantMensajesEnviados+1,NewDic,1)
             end;
 
-        {propuestaOrden, PropuestaOrden, IdentificadorMensaje} ->
+        {propuestaOrden, PropuestaOrden, IdentificadorMensaje, From} ->
 
             io:format("[sender] Se recibio la propuesta de orden >~p< para el identificador >~p<~n",[PropuestaOrden,IdentificadorMensaje]),
 
             case dict:find(IdentificadorMensaje, DicMsgToSend) of 
                 
-                {ok, Value} ->
+                {ok, {CantPropuestasARecebir,ListaPropuestas,Nodos}} ->
 
-                    io:format("[sender]  El identificador >~p< esta asociado al mensaje ~p con la propuesta ~p ~n",[IdentificadorMensaje,Value,PropuestaOrden]),
+                    %%io:format("[sender]  El identificador >~p< esta asociado al mensaje ~p con la propuesta ~p ~n",[IdentificadorMensaje,PropuestaOrden]),
 
-
-                    {CantPropuestasARecebir,ListaPropuestas} = Value,
+                    
+                    %% Actualizar Datos
                     PropToReceive = CantPropuestasARecebir - 1,
                     ListaPrima = ListaPropuestas ++ [PropuestaOrden],
-
+                    ListaNuevaNodos = lists:delete(From,Nodos),
+                    
                     if 
                         (PropToReceive == 0) ->
 
@@ -102,15 +124,15 @@ aSender(CantMensajesEnviados,DicMsgToSend) ->
                                 io:format("[sender][listaPropuesta] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
                                 lists:foreach(fun(X) -> {sequencer , X } ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
                                 sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada},
-                                aSender(CantMensajesEnviados,NewDic);   
+                                aSender(CantMensajesEnviados,NewDic,1);   
                 
                         true->
                             io:format("[sender][sumandoPropuestas] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
                             NewDic = dict:store(IdentificadorMensaje
-                                    , {PropToReceive,ListaPrima}
+                                    , {PropToReceive,ListaPrima,ListaNuevaNodos}
                                     , DicMsgToSend),
                             io:format("[sender][sumandoPropuestas] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-                            aSender(CantMensajesEnviados,NewDic)        
+                            aSender(CantMensajesEnviados,NewDic,1)        
                     end;
                     
                 error ->
@@ -122,9 +144,7 @@ aSender(CantMensajesEnviados,DicMsgToSend) ->
 
 
 aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO)-> 
-
     receive
-
         {crearPaqueteSO, Mensaje, CantMensajesEnviados} -> 
 
             PaqueteSO = #paqueteSinOrden{msg = Mensaje
@@ -148,7 +168,7 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
             PropuestaOrden = lists:max([OrdenMaximoPropuesto,Paquete#paqueteSinOrden.ordenPropuesto]) + 1,
 
             {Nodo,_} = Paquete#paqueteSinOrden.identificador,            
-            {sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador},
+            {sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador,node()},
             
             io:format("[sequencer][askingForOrder]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
             NewDic = dict:store(Paquete#paqueteSinOrden.identificador
@@ -180,7 +200,6 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
                 end
         
     after 
-        
         %% Tratamos de mandar a Deliver
         TO -> 
             case dict:find(OrdenActual+1, DicMensajes) of
@@ -205,4 +224,8 @@ aDeliver() ->
     end.
 
 
-%%Sharing Terminal: Could not start terminal process C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe: The directory name is invalid.
+%%contarElementos cuenta la cantidad de elementos de un lista
+contarElementos([]) ->
+    0;  
+contarElementos([_Hd|Tl])->
+    1 + contarElementos(Tl).
