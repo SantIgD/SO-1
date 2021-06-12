@@ -8,7 +8,7 @@
 %%Libreria de acceso
 -export([aBroadcast/1]).
 
--export([aDeliver/0,aSequencer/5,aSender/4]).
+-export([aDeliverInit/0,aSequencer/5,aSenderInit/3]).
 -export([contarElementos/1,link_nodos/2]).
 -define(Nodos,4).
 
@@ -20,13 +20,9 @@ start() ->
     io:format("Se inicia el nodo ~p~n",[node()]),
     CantNodos = contarElementos(nodes())+1,
     register(sequencer, spawn(?MODULE, aSequencer,[dict:new(),0,0,0,0])),
-    register(deliver,   spawn(?MODULE, aDeliver  ,[])),
-    register(sender,    spawn(?MODULE, aSender   ,[0,dict:new(),0,CantNodos])),
-    
+    register(deliver,   spawn(?MODULE, aDeliverInit  ,[])),
+    register(sender,    spawn(?MODULE, aSenderInit   ,[0,dict:new(),CantNodos])),
     ok.
-
-
-
 link_nodos(1,PCName) ->
     net_adm:ping(list_to_atom("nodo1@"++PCName));
 
@@ -38,14 +34,44 @@ link_nodos(N,PCName) ->
 %%stop() se encarga de matar el nodo
 stop() ->
 
-    sequencer ! fin,
-    deliver   ! fin,
-    sender    ! fin,
+    case catch (sequencer ! fin) of
+        fin -> 
+            receive 
+                sequencerFinOk -> ok
+            end;
 
-    unregister(sequencer),
-    unregister(deliver),
-    unregister(sender),
+        _ErrorCatch -> ok
+    end,
 
+    case catch (deliver ! fin) of
+        fin -> 
+            receive 
+                deliverFinOk -> ok
+            end;
+
+        _ErrorCatch2 -> ok
+    end,
+
+    case catch (sender ! fin) of
+        fin -> 
+            receive 
+                senderFinOk -> ok
+            end;
+        _ErrorCatch3 -> ok
+    end,
+
+    case catch (unregister(sequencer)) of
+        _NoMeImporta1 -> ok
+    end,
+
+    case catch (unregister(deliver)) of
+        _NoMeImporta2 -> ok
+    end,
+
+    case catch (unregister(sender)) of
+        _NoMeImporta3 -> ok
+    end,
+   
     init:stop().
 
 aBroadcast(Mensaje) ->
@@ -53,7 +79,7 @@ aBroadcast(Mensaje) ->
     Nodos = nodes(),
     if  Nodos /= [] ->
 
-        io:format("Se quiere mandar el mensaje >~p<~n",[Mensaje]),
+        %io:format("Se quiere mandar el mensaje >~p<~n",[Mensaje]),
         sender ! {msg, Mensaje},
         ok;
 
@@ -87,18 +113,27 @@ actualizarDiccionario([Key|Keys],DicMsgToSend,Node) ->
     end.
 
 
-aSender(CantMensajesEnviados,DicMsgToSend,0,CantNodos)->
-    
+aSenderInit(CantMensajesEnviados,DicMsgToSend,CantNodos)->
+    link(whereis(sequencer)),
+    link(whereis(deliver)),
     Nodes = nodes(),
     lists:foreach(fun(X) -> monitor_node(X,true) end, Nodes),
-    aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos);
+
+    aSender(CantMensajesEnviados,DicMsgToSend,CantNodos).
 
 
-aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
+aSender(CantMensajesEnviados,DicMsgToSend,CantNodos) ->
     
     receive 
 
-        fin -> exit(normal);
+        {'EXIT', _Exiting_Process_Id, _Reason} ->
+            %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (No se recibio respuesta del sequencer del mismo nodo)
+                        stop();
+
+        {fin, From} -> 
+                       From ! senderFinOk,
+                       exit(normal);
+        
         {nodedown, Node} ->
 
             %verificar si el nodo tiene que mandar propuesta a uno de los mensajes a enviar
@@ -113,7 +148,7 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                     KeyListMsgToSend = dict:fetch_keys(DicMsgToSend),
                     NewDicMsgToSend  = actualizarDiccionario(KeyListMsgToSend,DicMsgToSend,Node),
                     io:format("[sender][nodedown] Diccionario modificado: ~p~n",[dict:to_list(NewDicMsgToSend)]),    
-                    aSender(CantMensajesEnviados,NewDicMsgToSend,1,CantNodos);
+                    aSender(CantMensajesEnviados,NewDicMsgToSend,CantNodos);
 
                 true -> io:format("[sender][nodedown] Nos vimos en disney~n"),    
                         init:stop()
@@ -144,9 +179,12 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
 
                         %%io:format("[sender] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
 
-                    lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,Nodes),
-                    
-                    aSender(CantMensajesEnviados+1,NewDic,1,CantNodos)
+                        lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,Nodes),
+                        
+                        aSender(CantMensajesEnviados+1,NewDic,CantNodos);
+
+                {'EXIT', _Exiting_Process_Id, _Reason} ->
+                        stop()
 
             after
                 5000 ->
@@ -177,7 +215,7 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                         (PropToReceive == 0) ->
                                 broadcast(ListaPropuestasPrima, IdentificadorMensaje),
                                 NewDic = dict:erase(IdentificadorMensaje, DicMsgToSend),
-                                aSender(CantMensajesEnviados,NewDic,1,CantNodos);   
+                                aSender(CantMensajesEnviados,NewDic,CantNodos);   
                 
                         true->
                             %%io:format("[sender][sumandoPropuestas] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
@@ -185,7 +223,7 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                                     , {PropToReceive,ListaPropuestasPrima,ListaNuevaNodos}
                                     , DicMsgToSend),
                             %%io:format("[sender][sumandoPropuestas] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-                            aSender(CantMensajesEnviados,NewDic,1,CantNodos)        
+                            aSender(CantMensajesEnviados,NewDic,CantNodos)        
                     end;
                     
                 error ->
@@ -194,14 +232,11 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                     stop(),
                     exit(normal)
             end;
-
         _Error ->
             %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (se recibio un mensaje re wadafak)
-            stop(),
-            exit(normal)
+            init:stop()
 
     end.
-
 
 aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO)-> 
     receive
@@ -228,7 +263,7 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
             PropuestaOrden = lists:max([OrdenMaximoPropuesto,Paquete#paqueteSinOrden.ordenPropuesto]) + 1,
 
             {Nodo,_} = Paquete#paqueteSinOrden.identificador,            
-            %{sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador,node()},
+            {sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador,node()},
             
             %%io:format("[sequencer][askingForOrder]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
             NewDic = dict:store(Paquete#paqueteSinOrden.identificador
@@ -259,12 +294,16 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
                     exit(normal)
                 end;
 
-        fin -> exit(normal);
+        {fin, From} -> 
+            From ! sequencerFinOk,
+            exit(normal);
+        
+        {'EXIT', _Exiting_Process_Id, _Reason} ->
+            stop();
         
         _Error ->
             %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (se recibio un mensaje inesperado)
-            stop(),
-            exit(normal)
+            init:stop()
 
     after 
         %% Tratamos de mandar a Deliver
@@ -282,17 +321,27 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
 
     end.
 
+aDeliverInit()->
+    link(whereis(sequencer)),
+    aDeliver().
+
 aDeliver() ->
     receive
-        fin -> exit(normal);
+        {fin, From} -> 
+            From ! deliverFinOk,
+            exit(normal);
         {msg,M} ->
             io:format("Deliver : ~p ~n",[M]),
             aDeliver();
+        
+        {'EXIT', _Exiting_Process_Id, _Reason} ->
+            stop();
 
         _Error ->
         %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (se recibio un mensaje inesperado)
-            stop(),
-            exit(normal)
+            init:stop()
+        
+        
     end.
 
 
@@ -310,4 +359,7 @@ broadcast(ListaPropuestas,IdentificadorMensaje) ->
     %%io:format("[sender][listaPropuesta] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
     lists:foreach(fun(X) -> {sequencer , X } ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
     sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada}.
+    
+
+
     

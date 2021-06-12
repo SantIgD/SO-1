@@ -61,6 +61,23 @@ evitamos inconsistencias y el minimo de nodos los establecemos en 2 (el caso de 
 
 Nota = En el caso de querer optimizar el codigo encontrar alguna forma de no contar la lista de nodos cada vez que se necesita
 
+
+Si un proceso explota, los demas procesos de ese nodo terminan de hacer lo que estaban haciendo y mueren.
+
+
+Estado inconsistentes o explota un proceso porque si -> lo hacemos mierda
+
+Si explota un proceso porque si -> Cerramos luego de que los demas procesos manden sus info
+Nos arrepentimos, de hacer esto se complica el hecho de matar el nodo y generaria que un nodo quedaria
+activo sin los procesos deliver,sequencer y sender por lo tanto trabaria todo el sistema (los demas nodos quedarian
+esperando a que este le responda una propuesta y esta nunca va a llegar, como el amor de ella)
+
+
+Nuevo aproach, Si recibimos un mensaje que nada que ver... matamos el nodo, esto no puede salir a la luz.
+
+Si un proceso explota random, hacemos que termine de mandar lo que tiene que mandar y cerramos el nodo amablemente
+
+
 Preguntas martes:
 
 
