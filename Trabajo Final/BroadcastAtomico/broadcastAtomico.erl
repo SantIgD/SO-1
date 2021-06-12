@@ -35,7 +35,7 @@ link_nodos(N,PCName) ->
     link_nodos(N-1,PCName).
 
 
-%%stop() se encarga de parar el nodo
+%%stop() se encarga de matar el nodo
 stop() ->
 
     sequencer ! fin,
@@ -49,9 +49,17 @@ stop() ->
     init:stop().
 
 aBroadcast(Mensaje) ->
-    io:format("Se quiere mandar el mensaje >~p<~n",[Mensaje]),
-    sender ! {msg, Mensaje},
-    ok.
+    
+    Nodos = nodes(),
+    if  Nodos /= [] ->
+
+        io:format("Se quiere mandar el mensaje >~p<~n",[Mensaje]),
+        sender ! {msg, Mensaje},
+        ok;
+
+        true -> deliver ! {msg, Mensaje},
+                ok
+    end.
 
 actualizarDiccionario([],DicMsgToSend,_Node) ->
     DicMsgToSend;
@@ -91,7 +99,6 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
     receive 
 
         fin -> exit(normal);
-        
         {nodedown, Node} ->
 
             %verificar si el nodo tiene que mandar propuesta a uno de los mensajes a enviar
@@ -100,7 +107,7 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
             NewCantNodos = contarElementos(nodes())+1,
             io:format("El porcentaje de nodos en funcionamiento es ~p~n",[NewCantNodos*100/CantNodos]),
             
-            if NewCantNodos*100/CantNodos >= 50 ->
+            if NewCantNodos*100/CantNodos >= 75 ->
 
                     io:format("[sender][nodedown] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),    
                     KeyListMsgToSend = dict:fetch_keys(DicMsgToSend),
@@ -132,7 +139,7 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                         %%io:format("[sender] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),
 
                         NewDic = dict:store(PaqueteSO#paqueteSinOrden.identificador
-                                , {CantPropuestasARecebir,[PaqueteSO#paqueteSinOrden.ordenPropuesto + 1],Nodes}
+                                , {CantPropuestasARecebir,[PaqueteSO#paqueteSinOrden.ordenPropuesto + 1],Nodes} %% se inyecta la propuesta del nodo emisor directamente. (por eso el +1)
                                 , DicMsgToSend),
 
                         %%io:format("[sender] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
@@ -140,6 +147,14 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                     lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,Nodes),
                     
                     aSender(CantMensajesEnviados+1,NewDic,1,CantNodos)
+
+            after
+                5000 ->
+                        %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (No se recibio respuesta del sequencer del mismo nodo)
+                        stop(),
+                        exit(normal)
+
+    
             end;
 
         {propuestaOrden, PropuestaOrden, IdentificadorMensaje, From} ->
@@ -174,9 +189,16 @@ aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
                     end;
                     
                 error ->
-                   io:format("[Sender] El identificador ~p no corresponde a ningun mensaje~n",[IdentificadorMensaje])  %% se muere, como debe ser... por inepto 
-            end
 
+                    %Estado inconsistente del sistema, MUERTE AL TRAIDOR
+                    stop(),
+                    exit(normal)
+            end;
+
+        _Error ->
+            %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (se recibio un mensaje re wadafak)
+            stop(),
+            exit(normal)
 
     end.
 
@@ -213,7 +235,7 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
                         ,{Paquete#paqueteSinOrden.msg, PropuestaOrden}
                         , DicMensajes),
             %%io:format("[sequencer][askingForOrder]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-            %%ojo aca
+         
             aSequencer(NewDic, OrdenMaximoAcordado, PropuestaOrden, OrdenActual, TO);
 
 
@@ -232,17 +254,24 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
                     aSequencer(NewDic,NewOrdenMaxAcor,OrdenMaximoPropuesto, OrdenActual, 0);
                    
                 error ->
-                   io:format("[sequencer] El identificador ~p no esta asociado a ningun mensaje ~n",[IdentificadorMensaje]);
+                   %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (Mensaje no encontrado en el diccionario)
+                    stop(),
+                    exit(normal)
+                end;
 
-                Other -> io:format("ME LLEGO ~p~n",[Other])
-                end
+        fin -> exit(normal);
         
+        _Error ->
+            %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (se recibio un mensaje inesperado)
+            stop(),
+            exit(normal)
+
     after 
         %% Tratamos de mandar a Deliver
         TO -> 
             case dict:find(OrdenActual+1, DicMensajes) of
                 {ok, Msg} ->
-                            deliver ! Msg,
+                            deliver ! {msg, Msg},
                             %%io:format("[sequencer][TO]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
                             NewDic = dict:erase(OrdenActual+1, DicMensajes),
                             %%io:format("[sequencer][TO]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
@@ -256,9 +285,14 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
 aDeliver() ->
     receive
         fin -> exit(normal);
-        M ->
+        {msg,M} ->
             io:format("Deliver : ~p ~n",[M]),
-            aDeliver()
+            aDeliver();
+
+        _Error ->
+        %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (se recibio un mensaje inesperado)
+            stop(),
+            exit(normal)
     end.
 
 

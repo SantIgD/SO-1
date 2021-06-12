@@ -37,8 +37,8 @@ Decidimos que si se cae mas del 25% de los nodos, se cierra el servicio.
 
 Para ejecutarlo bien: 
 
-1 - Crear los nodos con los nombres nodo1,nodo2,...,nodoN
-2 - Link() desde un unico nodo
+1 - Crear los nodos con los nombres nodo1,nodo2,...,nodoN (Con N mayor a 1)
+2 - Link_nodos(CantNodos,String nombre de PC) desde un unico nodo
 3 - Start() 
 
 
@@ -56,3 +56,16 @@ dificultad).
 Teniendo en cuanta la decision de que todos los nodos esten conectados al momento del primer start() 
 vamos a tomar como maxima cantidad de nodos al tamaño de la lista de nodes() para no definir una constante 
 
+Decidimos que el servidor va a andar siempre y cuando haya al menos 75% de los nodos activos. De esta forma
+evitamos inconsistencias y el minimo de nodos los establecemos en 2 (el caso de 1 es trivial por lo cual no lo consideramos).
+
+Nota = En el caso de querer optimizar el codigo encontrar alguna forma de no contar la lista de nodos cada vez que se necesita
+
+Preguntas martes:
+
+
+ 1) Podemos establecer un N minimo de nodos?
+
+ 2) Si se muere un proceso en un nodo podemos matar el Nodo(usando init:stop())?
+
+ 3) En el chequeo de errores, solo nos centramos en la muerte de nodos?
