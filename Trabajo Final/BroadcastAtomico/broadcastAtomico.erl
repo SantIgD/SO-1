@@ -8,7 +8,7 @@
 %%Libreria de acceso
 -export([aBroadcast/1]).
 
--export([aDeliver/0,aSequencer/5,aSender/3]).
+-export([aDeliver/0,aSequencer/5,aSender/4]).
 -export([contarElementos/1,link_nodos/2]).
 -define(Nodos,4).
 
@@ -18,9 +18,10 @@
 start() ->
 
     io:format("Se inicia el nodo ~p~n",[node()]),
+    CantNodos = contarElementos(nodes())+1,
     register(sequencer, spawn(?MODULE, aSequencer,[dict:new(),0,0,0,0])),
     register(deliver,   spawn(?MODULE, aDeliver  ,[])),
-    register(sender,    spawn(?MODULE, aSender   ,[0,dict:new(),0])),
+    register(sender,    spawn(?MODULE, aSender   ,[0,dict:new(),0,CantNodos])),
     
     ok.
 
@@ -45,34 +46,76 @@ stop() ->
     unregister(deliver),
     unregister(sender),
 
-    ok.
+    init:stop().
 
 aBroadcast(Mensaje) ->
     io:format("Se quiere mandar el mensaje >~p<~n",[Mensaje]),
     sender ! {msg, Mensaje},
     ok.
 
+actualizarDiccionario([],DicMsgToSend,_Node) ->
+    DicMsgToSend;
+actualizarDiccionario([Key|Keys],DicMsgToSend,Node) ->
 
-aSender(CantMensajesEnviados,DicMsgToSend,0)->
+    {PropToReceive,ListaPropuestas,ListaNodos} = dict:fetch(Key,DicMsgToSend),
+
+    Prep = lists:member(Node,ListaNodos),
+    
+    if  Prep -> 
+                NewListaNodos = lists:delete(Node,ListaNodos),
+                Contador = PropToReceive - 1,
+                
+                if Contador == 0 ->  broadcast(ListaPropuestas, Key),
+                                     NewDic = dict:erase(Key,DicMsgToSend),
+                                     actualizarDiccionario(Keys,NewDic,Node);
+
+                   true          ->  NewDic = dict:store(Key,{Contador, ListaPropuestas, NewListaNodos},DicMsgToSend),
+                                     actualizarDiccionario(Keys,NewDic,Node)
+
+                           
+                end;
+
+        true -> actualizarDiccionario(Keys,DicMsgToSend,Node)
+    end.
+
+
+aSender(CantMensajesEnviados,DicMsgToSend,0,CantNodos)->
     
     Nodes = nodes(),
     lists:foreach(fun(X) -> monitor_node(X,true) end, Nodes),
-    aSender(CantMensajesEnviados,DicMsgToSend,1);
+    aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos);
 
-aSender(CantMensajesEnviados,DicMsgToSend,1) ->
+
+aSender(CantMensajesEnviados,DicMsgToSend,1,CantNodos) ->
     
     receive 
+
         fin -> exit(normal);
         
+        {nodedown, Node} ->
 
-        {nodedown, _Node} ->
-            ok;
+            %verificar si el nodo tiene que mandar propuesta a uno de los mensajes a enviar
+            %En el caso de que este, se quita de la cola de nodos a esperar y se resta en 1
+            %la cantidad de nodos que se esta esperando. Si no esta, no se modifica el Diccionario
+            NewCantNodos = contarElementos(nodes())+1,
+            io:format("El porcentaje de nodos en funcionamiento es ~p~n",[NewCantNodos*100/CantNodos]),
+            
+            if NewCantNodos*100/CantNodos >= 50 ->
 
-        {stop, _Node} -> ok;   
+                    io:format("[sender][nodedown] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),    
+                    KeyListMsgToSend = dict:fetch_keys(DicMsgToSend),
+                    NewDicMsgToSend  = actualizarDiccionario(KeyListMsgToSend,DicMsgToSend,Node),
+                    io:format("[sender][nodedown] Diccionario modificado: ~p~n",[dict:to_list(NewDicMsgToSend)]),    
+                    aSender(CantMensajesEnviados,NewDicMsgToSend,1,CantNodos);
+
+                true -> io:format("[sender][nodedown] Nos vimos en disney~n"),    
+                        init:stop()
+            end;
+           
 
         {msg, Mensaje} -> 
 
-            io:format("[sender] Se inicia el protocolo de envio de >~p<~n",[Mensaje]),
+            %%io:format("[sender] Se inicia el protocolo de envio de >~p<~n",[Mensaje]),
 
             sequencer ! {crearPaqueteSO, Mensaje, CantMensajesEnviados + 1},
 
@@ -80,28 +123,28 @@ aSender(CantMensajesEnviados,DicMsgToSend,1) ->
 
                 {paqueteSO,PaqueteSO} ->
                         
-                        io:format("[sender] Recibimos el paqueteSinOrden ~p~n",[PaqueteSO]),
+                        %%io:format("[sender] Recibimos el paqueteSinOrden ~p~n",[PaqueteSO]),
                         
                         Nodes = nodes(),
 
                         CantPropuestasARecebir = contarElementos(Nodes),
 
-                        io:format("[sender] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),
+                        %%io:format("[sender] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),
 
                         NewDic = dict:store(PaqueteSO#paqueteSinOrden.identificador
-                                , {CantPropuestasARecebir,[],Nodes}
+                                , {CantPropuestasARecebir,[PaqueteSO#paqueteSinOrden.ordenPropuesto + 1],Nodes}
                                 , DicMsgToSend),
 
-                        io:format("[sender] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+                        %%io:format("[sender] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
 
                     lists:foreach(fun(X) -> {sequencer , X } ! {askingForOrder,PaqueteSO} end,Nodes),
                     
-                    aSender(CantMensajesEnviados+1,NewDic,1)
+                    aSender(CantMensajesEnviados+1,NewDic,1,CantNodos)
             end;
 
         {propuestaOrden, PropuestaOrden, IdentificadorMensaje, From} ->
 
-            io:format("[sender] Se recibio la propuesta de orden >~p< para el identificador >~p<~n",[PropuestaOrden,IdentificadorMensaje]),
+            %%io:format("[sender] Se recibio la propuesta de orden >~p< para el identificador >~p<~n",[PropuestaOrden,IdentificadorMensaje]),
 
             case dict:find(IdentificadorMensaje, DicMsgToSend) of 
                 
@@ -112,27 +155,22 @@ aSender(CantMensajesEnviados,DicMsgToSend,1) ->
                     
                     %% Actualizar Datos
                     PropToReceive = CantPropuestasARecebir - 1,
-                    ListaPrima = ListaPropuestas ++ [PropuestaOrden],
+                    ListaPropuestasPrima = ListaPropuestas ++ [PropuestaOrden],
                     ListaNuevaNodos = lists:delete(From,Nodos),
                     
                     if 
                         (PropToReceive == 0) ->
-
-                                PropuestaAcordada = lists:max(ListaPrima),
-                                io:format("[sender][listaPropuesta] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
+                                broadcast(ListaPropuestasPrima, IdentificadorMensaje),
                                 NewDic = dict:erase(IdentificadorMensaje, DicMsgToSend),
-                                io:format("[sender][listaPropuesta] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-                                lists:foreach(fun(X) -> {sequencer , X } ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
-                                sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada},
-                                aSender(CantMensajesEnviados,NewDic,1);   
+                                aSender(CantMensajesEnviados,NewDic,1,CantNodos);   
                 
                         true->
-                            io:format("[sender][sumandoPropuestas] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
+                            %%io:format("[sender][sumandoPropuestas] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
                             NewDic = dict:store(IdentificadorMensaje
-                                    , {PropToReceive,ListaPrima,ListaNuevaNodos}
+                                    , {PropToReceive,ListaPropuestasPrima,ListaNuevaNodos}
                                     , DicMsgToSend),
-                            io:format("[sender][sumandoPropuestas] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-                            aSender(CantMensajesEnviados,NewDic,1)        
+                            %%io:format("[sender][sumandoPropuestas] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+                            aSender(CantMensajesEnviados,NewDic,1,CantNodos)        
                     end;
                     
                 error ->
@@ -154,12 +192,12 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
 
             sender ! {paqueteSO,PaqueteSO},
                         
-            io:format("[sequencer][Local]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
+            %%io:format("[sequencer][Local]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
 
             NewDic    = dict:store(PaqueteSO#paqueteSinOrden.identificador
                         , {PaqueteSO#paqueteSinOrden.msg,PaqueteSO#paqueteSinOrden.ordenPropuesto}
                         , DicMensajes),
-            io:format("[sequencer][Local] Diccionario  modificado: ~p~n",[dict:to_list(NewDic)]),
+            %%io:format("[sequencer][Local] Diccionario  modificado: ~p~n",[dict:to_list(NewDic)]),
             aSequencer(NewDic,OrdenMaximoAcordado,OrdenMaximoPropuesto + 1, OrdenActual, TO);
     
 
@@ -168,13 +206,13 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
             PropuestaOrden = lists:max([OrdenMaximoPropuesto,Paquete#paqueteSinOrden.ordenPropuesto]) + 1,
 
             {Nodo,_} = Paquete#paqueteSinOrden.identificador,            
-            {sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador,node()},
+            %{sender, Nodo} ! {propuestaOrden, PropuestaOrden,Paquete#paqueteSinOrden.identificador,node()},
             
-            io:format("[sequencer][askingForOrder]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
+            %%io:format("[sequencer][askingForOrder]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
             NewDic = dict:store(Paquete#paqueteSinOrden.identificador
                         ,{Paquete#paqueteSinOrden.msg, PropuestaOrden}
                         , DicMensajes),
-            io:format("[sequencer][askingForOrder]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+            %%io:format("[sequencer][askingForOrder]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
             %%ojo aca
             aSequencer(NewDic, OrdenMaximoAcordado, PropuestaOrden, OrdenActual, TO);
 
@@ -185,12 +223,12 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
                 case dict:find(IdentificadorMensaje, DicMensajes) of
                 
                 {ok, {Mensaje,_OrdenPropuesto}} ->
-                    io:format("[sequencer][propuestaAcordada]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
+                    %%io:format("[sequencer][propuestaAcordada]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
                     AuxDic = dict:erase(IdentificadorMensaje, DicMensajes),
                     NewDic = dict:store(PropuestaAcordada
                                     , Mensaje
                                     , AuxDic),
-                    io:format("[sequencer][propuestaAcordada]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+                    %%io:format("[sequencer][propuestaAcordada]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
                     aSequencer(NewDic,NewOrdenMaxAcor,OrdenMaximoPropuesto, OrdenActual, 0);
                    
                 error ->
@@ -205,9 +243,9 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
             case dict:find(OrdenActual+1, DicMensajes) of
                 {ok, Msg} ->
                             deliver ! Msg,
-                            io:format("[sequencer][TO]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
+                            %%io:format("[sequencer][TO]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
                             NewDic = dict:erase(OrdenActual+1, DicMensajes),
-                            io:format("[sequencer][TO]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+                            %%io:format("[sequencer][TO]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
                             aSequencer(NewDic,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual + 1, 0);
         
                 error -> aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual,infinity)
@@ -229,3 +267,13 @@ contarElementos([]) ->
     0;  
 contarElementos([_Hd|Tl])->
     1 + contarElementos(Tl).
+
+broadcast(ListaPropuestas,IdentificadorMensaje) ->
+
+
+    PropuestaAcordada = lists:max(ListaPropuestas),
+    %%io:format("[sender][listaPropuesta] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
+    %%io:format("[sender][listaPropuesta] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+    lists:foreach(fun(X) -> {sequencer , X } ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
+    sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada}.
+    

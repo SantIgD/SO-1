@@ -42,4 +42,17 @@ Para ejecutarlo bien:
 3 - Start() 
 
 
+Vamos a controlar solo cuando los nodos se caen, en el caso de que en un nodo particular haya un error
+y se muera un proceso, el nodo se caera. Por haber decidido que no se pueden agregar nodos una vez que
+el sistema este en funcionamiento, si desearamos revivir el proceso que fallo en un nodo se generarian
+estados inconsistentes y tendriamos que establecer y programar un protoco para que el nodo vuelva a las
+canchas con un estado consistente. Para esto deberiamos establecer el protocolo para que un nodo se pueda
+agregar a la red, ya que seria pedir informacion del estado del sistema a todos los nodos activos poniendose uno en pausa
+y esto seria contradecir nuestra decision nombrada antes en el parrafo (ademas de que se agregaria otro nivel de
+dificultad).
+
+
+
+Teniendo en cuanta la decision de que todos los nodos esten conectados al momento del primer start() 
+vamos a tomar como maxima cantidad de nodos al tamaño de la lista de nodes() para no definir una constante 
 
