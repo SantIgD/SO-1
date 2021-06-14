@@ -86,3 +86,53 @@ Preguntas martes:
  2) Si se muere un proceso en un nodo podemos matar el Nodo(usando init:stop())?
 
  3) En el chequeo de errores, solo nos centramos en la muerte de nodos?
+ 
+  ---------------------------------------------
+  
+ 4) Por que el codigo dice Servidores sub i?
+
+ 5) El ledger es distribuido ya que el broadcast atomico lo es?
+
+ 6) Podemos usar un solo nodo para la conexion entre cliente y servidor?
+    
+    Si se cae que pasa? Hay que cuidarlo? O muere el servidor?
+
+ 7) Podemos usar un solo nodo para el ledger o el ledger tiene que estar distribuido
+    entre los nodos del broadcast atomico ?
+
+    Si se cae el ledger (si tenes un solo nodo) muere el servidor? 
+
+ 8) A quienes se conectan los clientes?
+
+-------------
+ Parte 3
+-------------
+
+1) Se invocan las operaciones del server con la tupla {c,op}, donde c es un contandor interno del cliente
+de las operaciones que va realizando.
+
+2) El cliente tiene que saber la cantidad de servers que pueden fallar. F -> numero minimo de servers activos 
+para que ande el servicio. L es el conjunto de servers activos tal que |L| > F.
+
+3) El cliente manda su request a los servers en L
+
+
+------
+Tareas
+-------
+
+Programar servidor
+
+Modificar broadcast para poder utilizarlo
+
+Programar cliente
+
+Implementar la conexion
+
+Consultar
+
+Corregir
+
+Hacer informe
+
+AProbar la materia

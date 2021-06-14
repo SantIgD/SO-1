@@ -1,16 +1,19 @@
 -module(broadcastAtomico).
 
 %%-include("broadcastAtomico.hrl").
-
 %%Libreria de control
 -export([start/0,stop/0]).
-
 %%Libreria de acceso
 -export([aBroadcast/1]).
-
 -export([aDeliverInit/0,aSequencer/5,aSenderInit/3]).
 -export([contarElementos/1,link_nodos/2]).
--define(Nodos,4).
+%%-define(Nodos,4).
+%%c(macros,[{d,bandera}]). para cargar la bandera
+-ifdef(bandera).
+    -define(enviar(Tripla),ledgersrv ! {deliver, Tripla}).
+-else.
+    -define(enviar(Mensaje), io:format("Deliver : ~p ~n",[Mensaje])).
+-endif.
 
 -record(paqueteSinOrden, {msg,identificador,ordenPropuesto}).
 
@@ -331,7 +334,7 @@ aDeliver() ->
             From ! deliverFinOk,
             exit(normal);
         {msg,M} ->
-            io:format("Deliver : ~p ~n",[M]),
+            ?enviar(M),
             aDeliver();
         
         {'EXIT', _Exiting_Process_Id, _Reason} ->
