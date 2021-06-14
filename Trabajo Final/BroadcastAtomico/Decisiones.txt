@@ -78,6 +78,9 @@ Nuevo aproach, Si recibimos un mensaje que nada que ver... matamos el nodo, esto
 Si un proceso explota random, hacemos que termine de mandar lo que tiene que mandar y cerramos el nodo amablemente
 
 
+Desde el cliente si se hace una requst tanto sea append o get, el cliente se quedara esperando la respuesta
+del servidor.
+
 Preguntas martes:
 
 
@@ -88,7 +91,7 @@ Preguntas martes:
  3) En el chequeo de errores, solo nos centramos en la muerte de nodos?
  
   ---------------------------------------------
-  
+
  4) Por que el codigo dice Servidores sub i?
 
  5) El ledger es distribuido ya que el broadcast atomico lo es?
