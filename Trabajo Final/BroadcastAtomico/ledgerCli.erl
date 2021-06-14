@@ -35,7 +35,7 @@ lAppend(R)->
     receive
         {upAck,N} -> tcp_handler ! {append, N, R, self()},
                     receive
-                        {ledger, Res} -> Res  
+                        {appendRes,ack,_C} -> ack
                     end    
     end.
 
