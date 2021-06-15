@@ -1,20 +1,35 @@
 -module(ledgerSrv).
 
--export([ledgerInit/0,ledger/4,tcp_handler/1]).
+-export([ledgerInit/0,ledger/3,tcp_handler/1,entryPointInit/0,socketHandler/0]).
 -import(broadcastAtomico,[start/0,aBroadcast/1]).
 -define(Puerto, 1234).
 
-ledgerInit() ->
-    start(),
+entryPointInit() ->
+
+    entryPoint(1).
+
+entryPoint(IndiceSelector) ->
+
     case gen_tcp:listen(?Puerto, [binary, {active, false}])of
 
-        {ok, ListenSocket} ->  
+        {ok, ListenSocket} -> 
+
             case gen_tcp:accept(ListenSocket) of
 
                 {ok, Socket} -> 
-                    spawn(?MODULE, tcp_handler,[Socket]), 
-                    register(ledgersrv,spawn(?MODULE, ledger,[[],[],[],Socket]));
-    
+                    
+                    case catch lists:nth(IndiceSelector,nodes()) of
+
+                        {'EXIT', _Reason} -> Node = lists:nth(1,nodes()),
+                                            {sockethandler, Node} ! {socketCliente, Socket},
+                                            entryPoint(2);
+
+                        Value             -> Node = Value,
+                                            {sockethandler, Node} ! {socketCliente, Socket},
+                                            entryPoint(IndiceSelector+1)
+
+                    end;
+            
                 {error, Reason} ->
                     io:format("Falló al intentar aceptar un socket por: ~p~n",[Reason])
 
@@ -27,6 +42,25 @@ ledgerInit() ->
     end,
     ok.
 
+socketHandler() ->
+
+    receive
+
+        {socketCliente, Socket} ->
+            spawn(?MODULE, tcp_handler,[Socket]),
+            socketHandler()
+
+    end,
+
+    ok.
+
+ledgerInit() ->
+    start(),
+    register(sockethandler, spawn(?MODULE, socketHandler,[])), 
+    register(ledgersrv    , spawn(?MODULE, ledger,[[],[],[]])),
+    ok.
+
+
 tcp_handler(Socket)->
     case gen_tcp:recv(Socket, 0) of
     
@@ -36,10 +70,10 @@ tcp_handler(Socket)->
             Mensaje = binary_to_term(Paquete),
             case Mensaje of
 
-                {get, C}     -> ledger ! {get, C},
+                {get, C}     -> ledger ! {get, C, Socket},
                                 tcp_handler(Socket);
                             
-                {append,R,C} -> ledger ! {append,R,C},
+                {append,R,C} -> ledger ! {append,R,C,Socket},
                                 tcp_handler(Socket)
                             
             end;  
@@ -50,35 +84,35 @@ tcp_handler(Socket)->
     end.
 
 
-ledger(S_i,StackGet,StackAppend,Socket)->
+ledger(S_i,StackGet,StackAppend)->
 
     receive
 
-        {get,C} ->
+        {get, C, Socket} ->
             
-            aBroadcast({get, C, self()}),
-            NewStackGet = StackGet++[{self(),C}],
-            ledger(S_i, NewStackGet, StackAppend, Socket);
+            aBroadcast({get, C, Socket}),
+            NewStackGet = StackGet++[{Socket,C}],
+            ledger(S_i, NewStackGet, StackAppend);
 
         {deliver, Response} ->
 
             case Response of      
-                {get, C, PID} ->
+                {get, C, Socket} ->
 
-                    Belong = lists:any(fun(X) -> X == {PID,C} end, StackGet),
+                    Belong = lists:any(fun(X) -> X == {Socket,C} end, StackGet),
                     if  Belong -> 
 
-                        Response = term_to_binary({get, C, PID}),  
+                        Response = term_to_binary({get, C, S_i}),  
                         gen_tcp:send(Socket, Response),
                         io:format("El conjunto es  = ,~p~n",[S_i]),
-                        NewStackGet = lists:delete({PID,C},StackGet),
-                        ledger(S_i, NewStackGet,StackAppend,Socket);
+                        NewStackGet = lists:delete({Socket,C},StackGet),
+                        ledger(S_i, NewStackGet,StackAppend);
                     
                         true -> 
-                            ledger(S_i, StackGet,StackAppend,Socket)
+                            ledger(S_i, StackGet,StackAppend)
                     end;
 
-                {append,R,C} ->
+                {append,R,C,Socket} ->
                     
                     Belong = lists:any(fun(X) -> X == {R,C} end,  S_i),
                     
@@ -93,19 +127,19 @@ ledger(S_i,StackGet,StackAppend,Socket)->
                             Response = term_to_binary({appendRes,ack,C}),
                             %%io:format("Se recibio el ACK de la tripla = ~p~n",[R]),
                             gen_tcp:send(Socket, Response),
-                            NewStackAppend = lists:delete({R,C},StackAppend),
-                            ledger(NewS_i, StackGet,NewStackAppend,Socket);        
+                            NewStackAppend = lists:delete({C,R},StackAppend),
+                            ledger(NewS_i, StackGet,NewStackAppend);        
 
-                            true -> ledger(NewS_i, StackGet,StackAppend,Socket)
+                            true -> ledger(NewS_i, StackGet,StackAppend)
                         end; 
                        
-                        true -> ledger(S_i, StackGet,StackAppend,Socket)
+                        true -> ledger(S_i, StackGet,StackAppend)
                     end
             end;     
-        {append,R,C}->
-            aBroadcast({append,R,C}),
+        {append,R,C,Socket}->
+            aBroadcast({append,R,C,Socket}),
             NewStackAppend = StackAppend++[{C,R}],
-            ledger(S_i, StackGet,NewStackAppend,Socket)
+            ledger(S_i, StackGet,NewStackAppend)
 
     end.
     

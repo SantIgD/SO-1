@@ -84,28 +84,44 @@ del servidor.
 Preguntas martes:
 
 
- 1) Podemos establecer un N minimo de nodos?
+ 01) Podemos establecer un N minimo de nodos?
 
- 2) Si se muere un proceso en un nodo podemos matar el Nodo(usando init:stop())?
+ 02) Si se muere un proceso en un nodo podemos matar el Nodo(usando init:stop())?
 
- 3) En el chequeo de errores, solo nos centramos en la muerte de nodos?
+ 03) En el chequeo de errores, solo nos centramos en la muerte de nodos?
  
   ---------------------------------------------
 
- 4) Por que el codigo dice Servidores sub i?
+ 04) Por que el codigo dice Servidores sub i? Son las secuencias.
 
- 5) El ledger es distribuido ya que el broadcast atomico lo es?
+ 05) El ledger es distribuido ya que el broadcast atomico lo es? No, cada nodo tiene tambien
+ una parte del ledger.
 
- 6) Podemos usar un solo nodo para la conexion entre cliente y servidor?
+ 06) Podemos usar un solo nodo para la conexion entre cliente y servidor?
     
-    Si se cae que pasa? Hay que cuidarlo? O muere el servidor?
+     Si se cae que pasa? Hay que cuidarlo? O muere el servidor?
 
- 7) Podemos usar un solo nodo para el ledger o el ledger tiene que estar distribuido
-    entre los nodos del broadcast atomico ?
+ 07) A quienes se conectan los clientes?
 
-    Si se cae el ledger (si tenes un solo nodo) muere el servidor? 
+ 08) Cada nodo del server deberia de tener su propio puerto?
 
- 8) A quienes se conectan los clientes?
+ 09) Como conectar los clientes al servidor? Como hicimos en el servidor de chat?
+
+ 10) No sabemos como resolver la conexion por tcp al server, onda... todo es distribuido menos
+ el que recibe los mensajes, se le mandan los sockets a cada nodo y cada cliente se comunica directamente
+ con un nodo, se recibe los mensajes en un unico nodo y se mandan a todos los nodos activos, se nos quemaron
+ los papeles.
+
+ 11) El get pending es unicamente para diferenciar a la hora de recibir el deliver?
+
+ 12) Por ahora lo que tiene mas sentido es que el cliente pueda mandar todas las request que quiera. Es decir,
+ no quedarse esperando la respuesta del server
+
+ 13) Controlamos los clientes en el sentido de cantidad conectados? Tenemos un maximo de clientes conectados?
+     LLevamos el control de cuantos servers hay activos o podemos simplemente manejarlo por adentor del servidor
+     y cuando se cae el servidor manejamos el evento con los clientes.
+
+
 
 -------------
  Parte 3
@@ -139,3 +155,7 @@ Corregir
 Hacer informe
 
 AProbar la materia
+
+
+
+

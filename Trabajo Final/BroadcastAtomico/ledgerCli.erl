@@ -24,7 +24,7 @@ lGet()->
         {upAck, N} -> 
             tcp_handler ! {get, N, self()},
             receive
-                {ledger, V} -> V  
+                {get, _C, S_i} -> S_i  
             end    
     end.
     
@@ -33,7 +33,7 @@ lAppend(R)->
     %%verificar tripla
     contador ! {up, self()}, 
     receive
-        {upAck,N} -> tcp_handler ! {append, N, R, self()},
+        {upAck,N} -> tcp_handler ! {append, R, N, self()},
                     receive
                         {appendRes,ack,_C} -> ack
                     end    
@@ -50,7 +50,7 @@ contador(N)->
 tcp_handler(Socket)->
 
     receive
-        {append, N, R, PID} ->
+        {append, R, N, PID} ->
 
             Mensaje = {append,N,R},
             Msg = term_to_binary(Mensaje),
