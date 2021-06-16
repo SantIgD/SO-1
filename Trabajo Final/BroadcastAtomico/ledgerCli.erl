@@ -1,17 +1,18 @@
 -module(ledgerCli).
 
--export([startCli/0,lGet/0,lAppend/1]).
+-export([startCli/0,lGet/0,lAppend/1,receive_tcp/1]).
 
--export([tcp_handler/1,contador/1]).
+-export([send_tcp/1,contador/1]).
 
 -define(Dir, "localhost").
--define(Puerto, 1234).
+-define(Puerto, 1239).
 
 startCli()->
     
     case gen_tcp:connect(?Dir, ?Puerto, [binary, {active, false}]) of
-        {ok, Socket} -> register(tcp_handler  , spawn(?MODULE,tcp_handler, [Socket])),
-                        register(contador     , spawn(?MODULE, contador , [0]));
+        {ok, Socket} -> register(send_tcp     , spawn(?MODULE,send_tcp, [Socket])),
+                        register(contador     , spawn(?MODULE, contador , [0])),
+                        register(receive_tcp  , spawn(?MODULE,receive_tcp, [Socket]));
 
         {error, _Reason} -> exit
     end,    
@@ -22,7 +23,7 @@ lGet()->
     contador ! {up,self()},
     receive
         {upAck, N} -> 
-            tcp_handler ! {get, N, self()},
+            send_tcp ! {get, N, self()},
             receive
                 {get, _C, S_i} -> S_i  
             end    
@@ -33,9 +34,9 @@ lAppend(R)->
     %%verificar tripla
     contador ! {up, self()}, 
     receive
-        {upAck,N} -> tcp_handler ! {append, R, N, self()},
+        {upAck,N} -> send_tcp ! {append, R, N, self()},
                     receive
-                        {appendRes,ack,_C} -> ack
+                        {appendRes,ack,_Mensaje }-> ack
                     end    
     end.
 
@@ -47,35 +48,42 @@ contador(N)->
                      contador(Num)
     end.
 
-tcp_handler(Socket)->
+send_tcp(Socket)->
 
     receive
         {append, R, N, PID} ->
 
             Mensaje = {append,N,R},
-            Msg = term_to_binary(Mensaje),
+            Msg     = term_to_binary(Mensaje),
             gen_tcp:send(Socket, Msg),
-            receive_tcp(Socket,PID);
+            receive
+                {receive_tcp , Msj} -> PID ! {appendRes, ack, Msj}
+            end;    
             
         {get, N, PID} ->
 
             Mensaje = {get,N},
             Msg = term_to_binary(Mensaje),
             gen_tcp:send(Socket, Msg),
-            receive_tcp(Socket,PID)
+            receive
+                {receive_tcp , Msj} -> 
+                    {get, Cont, S_i} = Msj,
+                    PID ! {get, Cont, S_i}
+            end
               
     end.
 
-receive_tcp(Socket, PID) ->
+receive_tcp(Socket) ->
 
     case gen_tcp:recv(Socket,0) of
             
                 {ok, Paquete} ->
                         Mensaje = binary_to_term(Paquete),       
-                        PID ! Mensaje,
-                        tcp_handler(Socket);
+                        send_tcp ! {receive_tcp, Mensaje},
+                        receive_tcp(Socket);
                     
-                {err, Reason }-> io:format("Error: ~p~n",[Reason])
+                {error, Reason} -> 
+                        io:format("Error: ~p~n",[Reason])
                     
     end.
 

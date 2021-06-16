@@ -1,98 +1,139 @@
 -module(ledgerSrv).
 
--export([ledgerInit/0,ledger/3,tcp_handler/1,entryPointInit/0,socketHandler/0]).
+%%Librerias del Ledger distribuido
+-export([ledgerInit/0,ledger/3]).
+
+%%Librerias de control de la conexion tcp
+-export([socketHandler/0,tcp_handler/2]).
+
+%%Libreria de acceso
+-export([entryPointInit/0]).
+
+%%Librerias importadas del broadcast atomico para el 
+%%funcionamiento del ledger
 -import(broadcastAtomico,[start/0,aBroadcast/1]).
--define(Puerto, 1234).
 
+%%Puerto de conexion tcp
+-define(Puerto, 1239).
+
+%
+%%ledgerInit:Inicializa el boradcast atomico y los actores principales de
+%           el ledger.
+ledgerInit() ->
+
+    start(),
+     
+    register(ledgersrv, spawn(?MODULE, ledger,[[],[],[]])),
+    
+    ok.
+
+%
+%%entryPointInit: Se inicia el entryPoint al server.
+%                Inicia con 1 ya que el contador debe empezar en 1
 entryPointInit() ->
-
-    entryPoint(1).
-
-entryPoint(IndiceSelector) ->
-
-    case gen_tcp:listen(?Puerto, [binary, {active, false}])of
+     case gen_tcp:listen(?Puerto, [binary, {active, false}]) of
 
         {ok, ListenSocket} -> 
+            register(socketHandler, spawn(?MODULE, socketHandler,[])),
+            entryPoint(1,ListenSocket);
+    
+        {error, Reason} -> 
+            io:format("Falló escuchar el puerto por: ~p~n",[Reason])
+
+    end.        
+%
+%%entryPoint: Escucha el puerto, encargado de recibir a nuevos
+%             clientes y asignarlos a algun nodo
+entryPoint(IndiceSelector,ListenSocket) ->
 
             case gen_tcp:accept(ListenSocket) of
 
                 {ok, Socket} -> 
+
+                    %%case gen_tcp:recv(Socket, 0) of
+    
+                    %%{ok, Paquete} ->   io:format("El paquete recibido fue = ~p~n",[binary_to_term(Paquete)]);
                     
-                    case catch lists:nth(IndiceSelector,nodes()) of
+                
+                    %%{error, closed} ->
+                    %%    io:format("error en la conexión~n")
+
+                    %%end,
+
+                    io:format("Estos son los nodos de la red : ~p~n",[nodes(connected)]),
+                    case catch lists:nth(IndiceSelector,nodes(connected)) of
 
                         {'EXIT', _Reason} -> Node = lists:nth(1,nodes()),
-                                            {sockethandler, Node} ! {socketCliente, Socket},
-                                            entryPoint(2);
+                                            spawn(?MODULE, tcp_handler,[Socket,Node]),
+                                            entryPoint(2,ListenSocket);
 
                         Value             -> Node = Value,
-                                            {sockethandler, Node} ! {socketCliente, Socket},
-                                            entryPoint(IndiceSelector+1)
+                                            spawn(?MODULE, tcp_handler,[Socket,Node]),
+                                            entryPoint(IndiceSelector+1,ListenSocket)
 
-                    end;
+                    end
             
-                {error, Reason} ->
-                    io:format("Falló al intentar aceptar un socket por: ~p~n",[Reason])
-
-             end;    
+            end.    
             
 
-        {error, Reason} -> 
-            io:format("Falló escuchar el puerto por: ~p~n",[Reason])
 
-    end,
-    ok.
-
+%
+%%socketHandler: Se encarga de recibir los socket de los
+%                clientes conectados y crear un actor (tcp_handler) por cada uno
+%                que escucha el socket del cliente.
 socketHandler() ->
 
     receive
 
-        {socketCliente, Socket} ->
-            spawn(?MODULE, tcp_handler,[Socket]),
+        {msgToSend, Msj ,Socket} ->
+            gen_tcp:send(Socket,Msj),
+            
             socketHandler()
-
-    end,
-
-    ok.
-
-ledgerInit() ->
-    start(),
-    register(sockethandler, spawn(?MODULE, socketHandler,[])), 
-    register(ledgersrv    , spawn(?MODULE, ledger,[[],[],[]])),
-    ok.
-
-
-tcp_handler(Socket)->
-    case gen_tcp:recv(Socket, 0) of
-    
-        {ok, Paquete} ->
-            
-            
-            Mensaje = binary_to_term(Paquete),
-            case Mensaje of
-
-                {get, C}     -> ledger ! {get, C, Socket},
-                                tcp_handler(Socket);
-                            
-                {append,R,C} -> ledger ! {append,R,C,Socket},
-                                tcp_handler(Socket)
-                            
-            end;  
-       
-       {error, closed} ->
-           io:format("El cliente cerró la conexión~n")
 
     end.
 
 
+%
+%%tcp_handler: Se encarga de recibir los mensajes de un cliente 
+%              a travez de un socket
+tcp_handler(Socket, Node)->
+    case gen_tcp:recv(Socket, 0) of
+    
+        {ok, Paquete} ->
+            
+            Mensaje = binary_to_term(Paquete),
+            case Mensaje of
+
+                {get, C}     -> {ledgersrv, Node} ! {get, C, Socket},
+                                tcp_handler(Socket,Node);
+                            
+                {append,R,C} -> {ledgersrv, Node} ! {append, R, C, Socket},
+                                tcp_handler(Socket,Node)
+                            
+            end;  
+       
+        {error, closed} ->
+           io:format("El cliente cerró la conexión~n")
+
+    end.
+
+%
+%%ledger: Se encarga de recibir y contestar las peteciones
+%         de los clientes
 ledger(S_i,StackGet,StackAppend)->
 
     receive
-
         {get, C, Socket} ->
             
             aBroadcast({get, C, Socket}),
             NewStackGet = StackGet++[{Socket,C}],
-            ledger(S_i, NewStackGet, StackAppend);
+            ledger(S_i, NewStackGet, StackAppend); 
+
+        {append,R,C,Socket}->
+
+            aBroadcast({append,R,C,Socket}),
+            NewStackAppend = StackAppend++[{C,R}],
+            ledger(S_i, StackGet,NewStackAppend);
 
         {deliver, Response} ->
 
@@ -102,9 +143,10 @@ ledger(S_i,StackGet,StackAppend)->
                     Belong = lists:any(fun(X) -> X == {Socket,C} end, StackGet),
                     if  Belong -> 
 
-                        Response = term_to_binary({get, C, S_i}),  
-                        gen_tcp:send(Socket, Response),
-                        io:format("El conjunto es  = ,~p~n",[S_i]),
+                        Response = term_to_binary({get, C, S_i}),
+                        TCP = nodes(hidden),
+                        {socketHandler, TCP} ! {msgToSend, Response ,Socket},
+                
                         NewStackGet = lists:delete({Socket,C},StackGet),
                         ledger(S_i, NewStackGet,StackAppend);
                     
@@ -125,8 +167,10 @@ ledger(S_i,StackGet,StackAppend)->
                         if Belong2 -> 
                                 
                             Response = term_to_binary({appendRes,ack,C}),
-                            %%io:format("Se recibio el ACK de la tripla = ~p~n",[R]),
-                            gen_tcp:send(Socket, Response),
+
+                            TCP = nodes(hidden),
+                            {socketHandler, TCP} ! {msgToSend, Response ,Socket},
+                            
                             NewStackAppend = lists:delete({C,R},StackAppend),
                             ledger(NewS_i, StackGet,NewStackAppend);        
 
@@ -135,11 +179,7 @@ ledger(S_i,StackGet,StackAppend)->
                        
                         true -> ledger(S_i, StackGet,StackAppend)
                     end
-            end;     
-        {append,R,C,Socket}->
-            aBroadcast({append,R,C,Socket}),
-            NewStackAppend = StackAppend++[{C,R}],
-            ledger(S_i, StackGet,NewStackAppend)
+            end
 
     end.
     
