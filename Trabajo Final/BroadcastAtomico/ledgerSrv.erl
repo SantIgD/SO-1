@@ -14,7 +14,7 @@
 -import(broadcastAtomico,[start/0,aBroadcast/1]).
 
 %%Puerto de conexion tcp
--define(Puerto, 1239).
+-define(Puerto, 1248).
 
 %
 %%ledgerInit:Inicializa el boradcast atomico y los actores principales de
@@ -50,20 +50,10 @@ entryPoint(IndiceSelector,ListenSocket) ->
 
                 {ok, Socket} -> 
 
-                    %%case gen_tcp:recv(Socket, 0) of
-    
-                    %%{ok, Paquete} ->   io:format("El paquete recibido fue = ~p~n",[binary_to_term(Paquete)]);
-                    
-                
-                    %%{error, closed} ->
-                    %%    io:format("error en la conexión~n")
-
-                    %%end,
-
                     io:format("Estos son los nodos de la red : ~p~n",[nodes(connected)]),
                     case catch lists:nth(IndiceSelector,nodes(connected)) of
 
-                        {'EXIT', _Reason} -> Node = lists:nth(1,nodes()),
+                        {'EXIT', _Reason} -> Node = lists:nth(1,nodes(connected)),
                                             spawn(?MODULE, tcp_handler,[Socket,Node]),
                                             entryPoint(2,ListenSocket);
 
@@ -86,9 +76,11 @@ socketHandler() ->
     receive
 
         {msgToSend, Msj ,Socket} ->
+            io:format("Se envio el mensaje del socket ~p con el mensaje ~p~n",[Socket,Msj]),
             gen_tcp:send(Socket,Msj),
-            
-            socketHandler()
+            socketHandler();
+
+        Any -> io:format("Sino se envio ~p~n",[Any])
 
     end.
 
@@ -141,11 +133,12 @@ ledger(S_i,StackGet,StackAppend)->
                 {get, C, Socket} ->
 
                     Belong = lists:any(fun(X) -> X == {Socket,C} end, StackGet),
+                    io:format("Se comparo el elemento ~p en la lista ~p ~n",[{Socket,C},StackGet]),
                     if  Belong -> 
-
-                        Response = term_to_binary({get, C, S_i}),
-                        TCP = nodes(hidden),
-                        {socketHandler, TCP} ! {msgToSend, Response ,Socket},
+                        io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
+                        TermToSend = term_to_binary({get, C, S_i}),
+                        [TCP] = nodes(hidden),
+                        {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
                 
                         NewStackGet = lists:delete({Socket,C},StackGet),
                         ledger(S_i, NewStackGet,StackAppend);
@@ -156,23 +149,23 @@ ledger(S_i,StackGet,StackAppend)->
 
                 {append,R,C,Socket} ->
                     
-                    Belong = lists:any(fun(X) -> X == {R,C} end,  S_i),
-                    
+                    Belong = lists:any(fun(X) -> X == R end,  S_i),
+                    io:format("Se comparo el elemento ~p en la lista ~p ~n",[R,S_i]),
                     if  Belong == false ->
-                        
+                         io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
                         NewS_i = S_i ++ [R],
 
                         Belong2 = lists:any(fun(X) -> X == {R,C} end,  StackAppend),
                 
                         if Belong2 -> 
-                                
-                            Response = term_to_binary({appendRes,ack,C}),
+                                io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),   
+                                TermToSend = term_to_binary({appendRes,ack,C}),
 
-                            TCP = nodes(hidden),
-                            {socketHandler, TCP} ! {msgToSend, Response ,Socket},
-                            
-                            NewStackAppend = lists:delete({C,R},StackAppend),
-                            ledger(NewS_i, StackGet,NewStackAppend);        
+                                [TCP] = nodes(hidden),
+                                {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
+                                
+                                NewStackAppend = lists:delete({C,R},StackAppend),
+                                ledger(NewS_i, StackGet,NewStackAppend);        
 
                             true -> ledger(NewS_i, StackGet,StackAppend)
                         end; 

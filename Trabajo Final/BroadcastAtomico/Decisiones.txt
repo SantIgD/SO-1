@@ -159,3 +159,6 @@ AProbar la materia
 
 
 
+Nuevas preguntas:
+
+ 1) Hace falta hacer un record y cheuqearlo? Con guardar el valor, no estaria?
