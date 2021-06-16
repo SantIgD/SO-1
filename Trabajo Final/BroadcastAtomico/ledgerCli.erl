@@ -8,7 +8,7 @@
 -export([lGet/0,lAppend/1]).
 
 %%Funciones del cliente del ledger
--export([send_tcp/1,contador/1,receive_tcp/1]).
+-export([send_tcpInit/1,clienteInfo/2,receive_tcpInit/1]).
 
 %%Direccion ip del server
 -define(Dir, "localhost").
@@ -18,40 +18,31 @@
 
 -define(TIMEOUT, 1000).
 
+intentarFinalizar(Objetivo, Respuesta) ->
+
+    Id = self(),
+    case catch (Objetivo ! {fin, Id}) of
+
+        {fin, Id} -> 
+            receive 
+                Respuesta -> unregister(Objetivo)
+            after
+                5000 -> ok 
+            end;
+
+        _Any -> ok
+    end.
+
 %
 %% stopCli : Termina con la ejecucion del cliente
 %
 stopCli()->
     
-    Id = self(),
-    case catch (contador ! {fin, Id}) of
-
-        {fin, Id} -> 
-            receive 
-                {contFinOk} -> unregister(contador)
-            end;
-
-        _Any -> ok
-    end,
-    
-    case catch (send_tcp ! {fin, Id}) of
-        
-        {fin, Id} -> 
-            receive 
-                {sendFinOk} -> unregister(send_tcp)
-            end;
-        _Any2 -> ok
-    end,
-
-    case  catch(receive_tcp ! {fin, Id}) of
-
-       {fin, Id} ->
-            receive 
-                {receiveFinOk, Socket} -> unregister(receive_tcp),
-                                          gen_tcp:close(Socket)
-            end;
-        _Any3 -> ok
-    end,
+    io:format("Cerrando el cliente ~n"),
+    intentarFinalizar(clienteInfo, {contFinOk}),
+    intentarFinalizar(send_tcp, {sendFinOk}),
+    intentarFinalizar(receive_tcp, {receiveFinOk}),
+    io:format("Cliente cerrado exitosamente ~n"),
     init:stop(),
     chau.
     
@@ -62,9 +53,10 @@ stopCli()->
 startCli()->
     
     case gen_tcp:connect(?Dir, ?Puerto, [binary, {active, false}]) of
-        {ok, Socket} -> register(send_tcp     , spawn(?MODULE, send_tcp   , [Socket])),
-                        register(contador     , spawn(?MODULE, contador   , [0])),
-                        register(receive_tcp  , spawn(?MODULE, receive_tcp, [Socket]));
+        {ok, Socket} ->  
+            register(clienteInfo  , spawn(?MODULE, clienteInfo   , [0])),
+            register(send_tcp     , spawn(?MODULE, send_tcpInit   , [Socket])),
+            register(receive_tcp  , spawn(?MODULE, receive_tcpInit, [Socket]));
 
         {error, Reason} -> 
             io:format("No se conecto: ~p",[Reason]),
@@ -76,7 +68,7 @@ startCli()->
 %%lGet : Se encarga de hacer el request para obtener la ultima secuencia del servidor 
 %
 lGet()->
-    contador ! {opRequest, self()},
+    clienteInfo ! {opRequest, self()},
     receive
         {opAck, N} -> 
             send_tcp ! {get, N}
@@ -89,24 +81,35 @@ lGet()->
 lAppend(R)->
 
     %%verificar tripla???????
-    contador ! {opRequest, self()}, 
+    clienteInfo ! {opRequest, self()}, 
     receive
         {opAck, N} -> send_tcp ! {append, R, N}
     end,
     ok.
 
 %
-%%contador : Se encarga de contar la cantidad de requests hechos
+%%clienteInfo : Se encarga de contar la cantidad de requests hechos
 %
-contador(N)->
+clienteInfo(N, Socket)->
     receive
         {opRequest, PID} -> Num = N + 1,
                      PID ! {opAck,Num},
-                     contador(Num);
+                     clienteInfo(Num, Socket);
 
-        {fin, PId} -> PId ! {contFinOk}            
+        {fin, PId} -> 
+            cerrarSocket(Socket),
+            PId ! {contFinOk};
+
+        {'EXIT', _Exiting_Process_Id, _Reason} -> unregister(clienteInfo),
+                                                  cerrarSocket(Socket),   
+                                                  stopCli()            
     end.
 
+
+send_tcpInit(Socket) ->
+
+    link(whereis(clienteInfo)),
+    send_tcp(Socket).
 %
 %%send_tcp : Se encarga de mandar las requests al servidor
 %
@@ -127,10 +130,24 @@ send_tcp(Socket)->
             gen_tcp:send(Socket, Msg),
             send_tcp(Socket);
 
-        {fin, PId} -> PId ! {sendFinOk} 
+        {fin, PId} -> 
+            
+            cerrarSocket(Socket),
+            PId ! {sendFinOk};
+
+        {'EXIT', _Exiting_Process_Id, _Reason} -> 
+
+            unregister(send_tcp),
+            cerrarSocket(Socket),
+            stopCli()            
+    
       
     end.
 
+receive_tcpInit(Socket)->
+    link(whereis(send_tcp)),
+    link(whereis(clienteInfo)),
+    receive_tcp(Socket).
 
 %
 %% receive_tcp : Se encarga de recibir las respuestas del servidor
@@ -141,13 +158,18 @@ receive_tcp(Socket) ->
     case gen_tcp:recv(Socket,0,?TIMEOUT) of
             
         {ok, Paquete} ->
-            Mensaje = binary_to_term(Paquete), 
+            Mensaje = binary_to_term(Paquete),
             io:format("El mensaje recibido fue: ~p~n",[Mensaje]),
             receive_tcp(Socket);
 
         {error, timeout} -> 
             receive
-                {fin, PId} -> PId ! {receiveFinOk} 
+                {fin, PId} -> cerrarSocket(Socket),
+                              PId ! {receiveFinOk};
+                
+                {'EXIT', _Exiting_Process_Id, _Reason} -> unregister(receive_tcp),
+                                                          cerrarSocket(Socket),
+                                                          stopCli()     
             after 
                 0 -> receive_tcp(Socket)
             end;
@@ -156,8 +178,21 @@ receive_tcp(Socket) ->
         {error, Reason} -> 
             io:format("Error: ~p~n",[Reason]),
             stopCli(),
+            cerrarSocket(Socket),
             unregister(receive_tcp)
 
                     
     end.
 
+
+%
+%% cerrarSocket : Intenta cerrar el socket
+%
+cerrarSocket(Socket) ->
+
+    case catch(gen_tcp:close(Socket)) of
+                    ok   -> ok;
+
+                    _Any -> shaTaba       
+    end,
+    ok.
