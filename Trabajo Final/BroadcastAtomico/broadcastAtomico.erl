@@ -8,7 +8,8 @@
 -export([aDeliverInit/0,aSequencer/5,aSenderInit/3]).
 -export([contarElementos/1,link_nodos/2]).
 %%-define(Nodos,4).
-%%c(macros,[{d,bandera}]). para cargar la bandera
+
+%%c(broadcastAtomico,[{d,bandera}]). para cargar la bandera
 -ifdef(bandera).
     -define(enviar(Tripla),ledgersrv ! {deliver, Tripla}).
 -else.
