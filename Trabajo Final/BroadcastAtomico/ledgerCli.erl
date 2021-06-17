@@ -18,6 +18,7 @@
 
 -define(TIMEOUT, 1000).
 
+
 intentarFinalizar(Objetivo, Respuesta) ->
 
     Id = self(),
@@ -54,7 +55,7 @@ startCli()->
     
     case gen_tcp:connect(?Dir, ?Puerto, [binary, {active, false}]) of
         {ok, Socket} ->  
-            register(clienteInfo  , spawn(?MODULE, clienteInfo   , [0])),
+            register(clienteInfo  , spawn(?MODULE, clienteInfo   , [0, Socket])),
             register(send_tcp     , spawn(?MODULE, send_tcpInit   , [Socket])),
             register(receive_tcp  , spawn(?MODULE, receive_tcpInit, [Socket]));
 
@@ -183,7 +184,6 @@ receive_tcp(Socket) ->
                     
     end.
 
-
 %
 %% cerrarSocket : Intenta cerrar el socket
 %
@@ -194,7 +194,7 @@ cerrarSocket(Socket) ->
 
                     _Any -> shaTabaChe    
     end,
-    ok.
+    ok.    
 
 %
 %% trySend : Intenta enviar las request al server. En caso de no ser posiible sale 
@@ -208,4 +208,3 @@ trySend(Socket, Msg) ->
         _Any -> unregister(send_tcp),
                 exit(abnormal)
     end.
-

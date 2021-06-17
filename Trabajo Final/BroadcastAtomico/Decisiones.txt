@@ -162,3 +162,10 @@ AProbar la materia
 Nuevas preguntas:
 
  1) Hace falta hacer un record y cheuqearlo? Con guardar el valor, no estaria?
+
+ 2) Un cliente se conecta al sv, el sv le asgina un proceso a el socket generado, y si este proceso
+ muere porque si, es decir sin exit, es decir sin cerrar el socket, este quedaria conectado y el cliente
+ estaria conectado a un socket que no es manejado por ningun nodo. Para arreglar esto nos iriamos mucho por las ramas
+ y es en el caso de suponer que un proceso se muere porque si, no la maquina virtual, sino un proceso en particular.
+
+ POdemos asumir que este proceso en particular no se puede morir porque si?
