@@ -16,9 +16,13 @@
 %%Puerto del server
 -define(Puerto, 1249).
 
+%%Tiempo de espera del RECV
 -define(TIMEOUT, 1000).
 
 
+%
+%% intentarFinalizar: Encargado de mandar las señales de fin a los procesos
+%                     
 intentarFinalizar(Objetivo, Respuesta) ->
 
     Id = self(),
@@ -107,10 +111,15 @@ clienteInfo(N, Socket)->
     end.
 
 
+%
+%% send_tcpInit: Inicilializa el proceso de send_tcp
+%
 send_tcpInit(Socket) ->
 
     link(whereis(clienteInfo)),
     send_tcp(Socket).
+
+
 %
 %%send_tcp : Se encarga de mandar las requests al servidor
 %
@@ -144,6 +153,10 @@ send_tcp(Socket)->
       
     end.
 
+
+%
+%%receive_tcpInit : Inicializa el proceso de receive_tcp.
+%
 receive_tcpInit(Socket)->
     link(whereis(send_tcp)),
     link(whereis(clienteInfo)),
@@ -154,7 +167,7 @@ receive_tcpInit(Socket)->
 %
 receive_tcp(Socket) ->
 
-    %% los mensajes se encolaban???????
+    
     case gen_tcp:recv(Socket, 0, ?TIMEOUT) of
             
         {ok, Paquete} ->
@@ -196,6 +209,7 @@ cerrarSocket(Socket) ->
     end,
     ok.    
 
+
 %
 %% trySend : Intenta enviar las request al server. En caso de no ser posiible sale 
 %            de forma anormal
@@ -203,8 +217,7 @@ trySend(Socket, Msg) ->
 
     case catch(gen_tcp:send(Socket, Msg)) of
 
-        ok -> %io:format("Se mando ~p al socket ~p ~n",[Msg,Socket]),
-              send_tcp(Socket);
+        ok -> send_tcp(Socket);
 
         _Any -> unregister(send_tcp),
                 exit(abnormal)

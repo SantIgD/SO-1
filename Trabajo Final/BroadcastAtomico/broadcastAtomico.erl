@@ -1,15 +1,25 @@
 -module(broadcastAtomico).
 
 %%-include("broadcastAtomico.hrl").
-%%Libreria de control
+
+%%Funciones de control
 -export([start/0,stop/0]).
+
 %%Libreria de acceso
 -export([aBroadcast/1]).
+
+
 -export([aDeliverInit/0,aSequencer/5,aSenderInit/3]).
--export([contarElementos/1,link_nodos/2]).
+
+%%Funcion para facilitar la conexion de nodos
+-export([link_nodos/2]).
 %%-define(Nodos,4).
 
 %%c(broadcastAtomico,[{d,bandera}]). para cargar la bandera
+
+%
+%% Se puede elegir entre el funcionamiento del broadcastAtomico
+%  para usarla indibudialmente o en conjunto con el ledger
 -ifdef(bandera).
     -define(enviar(Tripla),ledgersrv ! {deliver, Tripla}).
 -else.
@@ -27,6 +37,9 @@ start() ->
     register(deliver,   spawn(?MODULE, aDeliverInit  ,[])),
     register(sender,    spawn(?MODULE, aSenderInit   ,[0,dict:new(),CantNodos])),
     ok.
+%
+%% link_nodos: Conecta N nodos con el nombre "nodoN@'nombreDeLaPc'"
+%
 link_nodos(1,PCName) ->
     net_adm:ping(list_to_atom("nodo1@"++PCName));
 
@@ -34,56 +47,35 @@ link_nodos(N,PCName) ->
     net_adm:ping(list_to_atom("nodo"++integer_to_list(N)++"@"++PCName)),
     link_nodos(N-1,PCName).
 
-
-%%stop() se encarga de matar el nodo
-stop() ->
-
-    case catch (sequencer ! fin) of
+%
+%% trySendFin: Intenta mandar fin a un atomo registrado y espera su respuesta
+%              si recibe respuesta de fin, se deregistra
+trySendFin(Registro, Response) ->
+    
+    case catch (Registro ! fin) of
         fin -> 
             receive 
-                sequencerFinOk -> ok
+                Response -> unregister(Registro)
             end;
 
         _ErrorCatch -> ok
-    end,
-
-    case catch (deliver ! fin) of
-        fin -> 
-            receive 
-                deliverFinOk -> ok
-            end;
-
-        _ErrorCatch2 -> ok
-    end,
-
-    case catch (sender ! fin) of
-        fin -> 
-            receive 
-                senderFinOk -> ok
-            end;
-        _ErrorCatch3 -> ok
-    end,
-
-    case catch (unregister(sequencer)) of
-        _NoMeImporta1 -> ok
-    end,
-
-    case catch (unregister(deliver)) of
-        _NoMeImporta2 -> ok
-    end,
-
-    case catch (unregister(sender)) of
-        _NoMeImporta3 -> ok
-    end,
-   
+    end.
+     
+%%stop() se encarga de matar el nodo
+stop() ->
+    trySendFin(sequencer, sequencerFinOk),
+    trySendFin(deliver, deliverFinOk),
+    trySendFin(sender, senderFinOk),
     init:stop().
 
+%
+%%aBroadcast: Envia el mensaje como argumento a todos los nodos conectados
+%
 aBroadcast(Mensaje) ->
     
     Nodos = nodes(),
     if  Nodos /= [] ->
 
-        %io:format("Se quiere mandar el mensaje >~p<~n",[Mensaje]),
         sender ! {msg, Mensaje},
         ok;
 
@@ -91,6 +83,10 @@ aBroadcast(Mensaje) ->
                 ok
     end.
 
+%
+%%actualizarDiccionario : Actualiza el diccionaria de mensajes enviados cuando un nodo de la red
+%                         se desconecta
+%
 actualizarDiccionario([],DicMsgToSend,_Node) ->
     DicMsgToSend;
 actualizarDiccionario([Key|Keys],DicMsgToSend,Node) ->
@@ -116,7 +112,9 @@ actualizarDiccionario([Key|Keys],DicMsgToSend,Node) ->
         true -> actualizarDiccionario(Keys,DicMsgToSend,Node)
     end.
 
-
+%
+%% aSenderInit: Inicializa el proceso sender
+%
 aSenderInit(CantMensajesEnviados,DicMsgToSend,CantNodos)->
     link(whereis(sequencer)),
     link(whereis(deliver)),
@@ -125,8 +123,11 @@ aSenderInit(CantMensajesEnviados,DicMsgToSend,CantNodos)->
 
     aSender(CantMensajesEnviados,DicMsgToSend,CantNodos).
 
-
-aSender(CantMensajesEnviados,DicMsgToSend,CantNodos) ->
+%
+%% aSender: recibe el mensaje, envia la propuesta, espera las propuestas
+%           elige el mayor numero propuesto y envia la seleccion a todos los nodos
+%
+aSender(CantMensajesEnviados, DicMsgToSend, CantNodos) ->
     
     receive 
 
@@ -241,7 +242,9 @@ aSender(CantMensajesEnviados,DicMsgToSend,CantNodos) ->
             init:stop()
 
     end.
-
+%
+%% aSequencer: crea el paquete 
+%
 aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO)-> 
     receive
         {crearPaqueteSO, Mensaje, CantMensajesEnviados} -> 
@@ -325,10 +328,16 @@ aSequencer(DicMensajes,OrdenMaximoAcordado,OrdenMaximoPropuesto, OrdenActual, TO
 
     end.
 
+
+%
+%% aDeliver: 
+%
 aDeliverInit()->
     link(whereis(sequencer)),
     aDeliver().
-
+%
+%%aDeliver: 
+%
 aDeliver() ->
     receive
         {fin, From} -> 
@@ -348,8 +357,9 @@ aDeliver() ->
         
     end.
 
-
+%
 %%contarElementos cuenta la cantidad de elementos de un lista
+%
 contarElementos([]) ->
     0;  
 contarElementos([_Hd|Tl])->
@@ -357,10 +367,7 @@ contarElementos([_Hd|Tl])->
 
 broadcast(ListaPropuestas,IdentificadorMensaje) ->
 
-
     PropuestaAcordada = lists:max(ListaPropuestas),
-    %%io:format("[sender][listaPropuesta] Diccionario sin modificado: ~p~n",[dict:to_list(DicMsgToSend)]),
-    %%io:format("[sender][listaPropuesta] Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
     lists:foreach(fun(X) -> {sequencer , X } ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada} end,nodes()),
     sequencer ! {propuestaAcordada,IdentificadorMensaje,PropuestaAcordada}.
     

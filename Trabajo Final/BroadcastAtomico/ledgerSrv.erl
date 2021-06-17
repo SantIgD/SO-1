@@ -7,7 +7,7 @@
 -export([socketHandler/1,tcp_handlerInit/2]).
 
 %%Funcion de control
--export([entryPointInit/0]).
+-export([entryPointInit/1,startEntry/0]).
 
 %%Librerias importadas del broadcast atomico para el 
 %%funcionamiento del ledger
@@ -29,23 +29,32 @@ startLedger() ->
     
     ok.
 
-entryPointStop()->ok.
 %
-%%entryPointInit: Se inicia el entryPoint al server.
-%                 Inicia con 1 ya que el contador debe empezar en 1
-entryPointInit() ->
+%%startEntry : Inicializa la conexion tcp del server.
+%
+startEntry() ->
      case gen_tcp:listen(?Puerto, [binary, {active, false}]) of
 
         {ok, ListenSocket} -> 
-            register(socketHandler, spawn_link(?MODULE, socketHandler,[ListenSocket])),
-            entryPoint(1, ListenSocket);
+            spawn(?MODULE, entryPointInit,[ListenSocket]);
+    
     
         {error, Reason} -> 
             io:format("Falló escuchar el puerto por: ~p~n",[Reason])
 
-    end.        
+    end.  
+
 %
-%%entryPoint: Escucha el puerto, encargado de recibir a nuevos
+%%entryPointInit: Se inicia el entryPoint al server.
+%                 Inicia con 1 ya que el contador debe empezar en 1
+
+entryPointInit(ListenSocket) ->
+    register(socketHandler, spawn_link(?MODULE, socketHandler,[ListenSocket])),
+    entryPoint(1, ListenSocket).
+
+
+%
+%%entryPoint: Escucha el puerto, encargado de aceptar a nuevos
 %             clientes y asignarlos a algun nodo
 entryPoint(IndiceSelector, ListenSocket) ->
 
@@ -88,7 +97,7 @@ entryPoint(IndiceSelector, ListenSocket) ->
             receive 
                {'EXIT', _Exiting_Process_Id, _Reason} -> 
                    cerrarSocket(ListenSocket),       
-                   entryPointInit()
+                   startEntry()
             after
                 0 ->
                     Nodes = nodes(connected),
@@ -120,15 +129,16 @@ socketHandler(ListenSocket) ->
     receive
 
         {msgToSend, Msj, Socket} ->
-            %io:format("Se envio el mensaje del socket ~p con el mensaje ~p~n",[Socket,Msj]),
+    
             trySend(Socket,Msj),
             socketHandler(ListenSocket);
             
         {'EXIT', _Exiting_Process_Id, _Reason} -> 
+            
             Nodes = nodes(connected),
             if Nodes /= [] -> 
                 cerrarSocket(ListenSocket),
-                entryPointInit();
+                startEntry();
             true -> exit(abnormal)
             end;
 
@@ -138,10 +148,10 @@ socketHandler(ListenSocket) ->
     end.
 
 
-
+%
+%% tcp_handlerInit: inicializar el tcp_handler
+%
 tcp_handlerInit(Socket, Node)->
-
-    %io:format("[Tcp_handlerINit] Al socket ~p se le asigno el nodo ~p~n",[Socket,Node]),
 
     monitor_node(Node, true),
     tcp_handler(Socket, Node).
@@ -152,15 +162,12 @@ tcp_handlerInit(Socket, Node)->
 %              a travez de un socket
 tcp_handler(Socket, Node) ->
 
-    %io:format("[Tcp_handler] Al socket ~p se le asigno el nodo ~p~n",[Socket,Node]),
-
     case gen_tcp:recv(Socket, 0) of
     
         {ok, Paquete} ->
             
-            
             Mensaje = binary_to_term(Paquete),
-            %io:format("El mensaje recibido es: ~p~n",[Mensaje]),
+           
             receive 
                 {nodedown, Node} -> 
                     Nodes = nodes(connected),
@@ -175,29 +182,30 @@ tcp_handler(Socket, Node) ->
                                 exit(abnormal)
                     end;
 
-                Any -> io:format("Recibimos la fruta >~p<, nos morimos ~n",[Any]),
+                Any ->  io:format("Recibimos la fruta >~p<, nos morimos ~n",[Any]),
                         cerrarSocket(Socket),
                         exit(abnormal)
             after
-                0 -> %io:format("Se va a entregar ~p al nodo ~p~n",[Mensaje,Node]),
+                0 -> 
                      deliverMensaje(Mensaje, Node, Socket),
                      tcp_handler(Socket, Node)
             end;   
        
         {error, _Reason} ->
-            %io:format("El cliente cerró la conexión~n"),
             cerrarSocket(Socket),
             exit(abnormal)
     end.
 
-
-
+%
+%%ledgerInit: Inicializa a la funcion ledger
+%
 ledgerInit(A,B,C) ->
 
     link(whereis(sequencer)),
     link(whereis(deliver)),
     link(whereis(sender)),
     ledger(A,B,C).
+
 %
 %%ledger: Se encarga de recibir y contestar las peteciones
 %         de los clientes
@@ -207,31 +215,34 @@ ledger(S_i,StackGet,StackAppend)->
         {get, C, Socket} ->
             %io:format("Recibimos una peticion de get del socket ~p ~n",[Socket]),
             aBroadcast({get, C, Socket}),
-            NewStackGet = StackGet++[{Socket,C}],
+            NewStackGet = StackGet ++ [{Socket,C}],
             ledger(S_i, NewStackGet, StackAppend); 
 
         {append, R, C, Socket}->
 
             %io:format("Recibimos una peticion de append del socket ~p~n",[Socket]),
             aBroadcast({append, R, C, Socket}),
-            NewStackAppend = StackAppend++[{R,C}],
+            NewStackAppend = StackAppend ++ [{R,C}],
             ledger(S_i, StackGet,NewStackAppend);
 
         {deliver, Response} ->
 
-            case Response of      
+            case Response of 
+
                 {get, C, Socket} ->
 
                     Belong = lists:any(fun(X) -> X == {Socket,C} end, StackGet),
-                    io:format("Se comparo el elemento ~p en la lista ~p ~n",[{Socket,C},StackGet]),
-                    if  Belong -> 
-                        io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
-                        TermToSend = term_to_binary({get, C, S_i}),
-                        [TCP] = nodes(hidden),
-                        {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
+                    %%io:format("Se comparo el elemento ~p en la lista ~p ~n",[{Socket,C},StackGet]),
+                    if  
+                        Belong -> 
+
+                            %%io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
+                            TermToSend = term_to_binary({get, C, S_i}),
+                            [TCP] = nodes(hidden),
+                            {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
                 
-                        NewStackGet = lists:delete({Socket,C},StackGet),
-                        ledger(S_i, NewStackGet,StackAppend);
+                            NewStackGet = lists:delete({Socket,C},StackGet),
+                            ledger(S_i, NewStackGet,StackAppend);
                     
                         true -> 
                             ledger(S_i, StackGet,StackAppend)
@@ -241,34 +252,36 @@ ledger(S_i,StackGet,StackAppend)->
                     
                     Belong = lists:any(fun(X) -> X == R end,  S_i),
                     %io:format("Se comparo el elemento ~p en la lista ~p y el resultado es ~p ~n",[R,S_i,Belong]),
-                    if  Belong == false ->
-                        %io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
-                        NewS_i = S_i ++ [R],
+                    if  
+                        Belong == false ->
+                            %io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
+                            NewS_i = S_i ++ [R],
 
-                        Belong2 = lists:any(fun(X) -> X == {R,C} end,  StackAppend),
-                        %io:format("Se comparo el elemento ~p en la lista ~p y el resultado es ~p~n",[{R,C},StackAppend, Belong2]),
-                        if Belong2 -> 
-                         %       io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),   
-                                TermToSend = term_to_binary({appendRes,ack,C}),
+                            Belong2 = lists:any(fun(X) -> X == {R,C} end,  StackAppend),
+                            %io:format("Se comparo el elemento ~p en la lista ~p y el resultado es ~p~n",[{R,C},StackAppend, Belong2]),
+                            if 
+                                Belong2 -> 
+                            %       io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),   
+                                    TermToSend = term_to_binary({appendRes,ack,C}),
 
-                                [TCP] = nodes(hidden),
-                                {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
-                                
-                                NewStackAppend = lists:delete({C,R},StackAppend),
-                                ledger(NewS_i, StackGet,NewStackAppend);        
+                                    [TCP] = nodes(hidden),
+                                    {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
+                                    
+                                    NewStackAppend = lists:delete({C,R},StackAppend),
+                                    ledger(NewS_i, StackGet,NewStackAppend);        
 
-                            true -> ledger(NewS_i, StackGet,StackAppend)
-                        end; 
+                                true -> 
+                                    ledger(NewS_i, StackGet,StackAppend)
+                            end; 
                        
-                        true -> ledger(S_i, StackGet,StackAppend)
+                        true -> 
+                            ledger(S_i, StackGet,StackAppend)
                     end
             end;
 
         {'EXIT', _Exiting_Process_Id, _Reason} ->
             unregister(ledger),
             stop()
-
-
     end.
     
 %
@@ -284,8 +297,8 @@ cerrarSocket(Socket) ->
     ok.    
 
 %
-%% trySend : Intenta enviar las request al server. En caso de no ser posiible sale 
-%            de forma anormal
+%% trySend : Intenta enviar las request al clinte. 
+%
 trySend(Socket, Msg) ->
 
     case catch(gen_tcp:send(Socket, Msg)) of
@@ -295,11 +308,17 @@ trySend(Socket, Msg) ->
         _Any -> seCayoUnCliente
     end.
 
+%
+%%contarElementos : Cuenta la cantidad de elementos que tiene una lista
+%
 contarElementos([]) ->
     0;  
 contarElementos([_Hd|Tl])->
     1 + contarElementos(Tl).
 
+%
+%%deliverMensaje: Se encarga de entregar los mensajes recibidos a los nodos
+%                 con los sockets correspondientes a sus clientes asignados
 deliverMensaje(Mensaje, Node, Socket) ->
 
     case Mensaje of
