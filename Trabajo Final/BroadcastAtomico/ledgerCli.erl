@@ -102,7 +102,7 @@ clienteInfo(N, Socket)->
 
         {'EXIT', _Exiting_Process_Id, _Reason} -> unregister(clienteInfo),
                                                   cerrarSocket(Socket),   
-                                                  stopCli()            
+                                                  exit(abnormal)          
     end.
 
 
@@ -120,15 +120,14 @@ send_tcp(Socket)->
 
             Mensaje = {append, R, N},
             Msg     = term_to_binary(Mensaje),
-            gen_tcp:send(Socket, Msg),
-            send_tcp(Socket);
+            trySend(Socket, Msg);
             
         {get, N} ->
 
             Mensaje = {get,N},
             Msg     = term_to_binary(Mensaje),
-            gen_tcp:send(Socket, Msg),
-            send_tcp(Socket);
+            trySend(Socket, Msg);
+        
 
         {fin, PId} -> 
             
@@ -139,7 +138,7 @@ send_tcp(Socket)->
 
             unregister(send_tcp),
             cerrarSocket(Socket),
-            stopCli()            
+            exit(abnormal)            
     
       
     end.
@@ -155,7 +154,7 @@ receive_tcpInit(Socket)->
 receive_tcp(Socket) ->
 
     %% los mensajes se encolaban???????
-    case gen_tcp:recv(Socket,0,?TIMEOUT) of
+    case gen_tcp:recv(Socket, 0, ?TIMEOUT) of
             
         {ok, Paquete} ->
             Mensaje = binary_to_term(Paquete),
@@ -169,7 +168,7 @@ receive_tcp(Socket) ->
                 
                 {'EXIT', _Exiting_Process_Id, _Reason} -> unregister(receive_tcp),
                                                           cerrarSocket(Socket),
-                                                          stopCli()     
+                                                          exit(abnormal)   
             after 
                 0 -> receive_tcp(Socket)
             end;
@@ -177,9 +176,9 @@ receive_tcp(Socket) ->
         
         {error, Reason} -> 
             io:format("Error: ~p~n",[Reason]),
-            stopCli(),
             cerrarSocket(Socket),
-            unregister(receive_tcp)
+            unregister(receive_tcp),
+            exit(abnormal)
 
                     
     end.
@@ -193,6 +192,20 @@ cerrarSocket(Socket) ->
     case catch(gen_tcp:close(Socket)) of
                     ok   -> ok;
 
-                    _Any -> shaTaba       
+                    _Any -> shaTabaChe    
     end,
     ok.
+
+%
+%% trySend : Intenta enviar las request al server. En caso de no ser posiible sale 
+%            de forma anormal
+trySend(Socket, Msg) ->
+
+    case catch(gen_tcp:send(Socket, Msg)) of
+
+        ok -> send_tcp(Socket);
+
+        _Any -> unregister(send_tcp),
+                exit(abnormal)
+    end.
+
