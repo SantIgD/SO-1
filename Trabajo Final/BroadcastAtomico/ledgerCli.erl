@@ -14,7 +14,7 @@
 -define(Dir, "localhost").
 
 %%Puerto del server
--define(Puerto, 1248).
+-define(Puerto, 1249).
 
 -define(TIMEOUT, 1000).
 
@@ -61,7 +61,7 @@ startCli()->
 
         {error, Reason} -> 
             io:format("No se conecto: ~p",[Reason]),
-            exit
+            exit(abnormal)
     end,    
     ok.
 
@@ -203,7 +203,8 @@ trySend(Socket, Msg) ->
 
     case catch(gen_tcp:send(Socket, Msg)) of
 
-        ok -> send_tcp(Socket);
+        ok -> %io:format("Se mando ~p al socket ~p ~n",[Msg,Socket]),
+              send_tcp(Socket);
 
         _Any -> unregister(send_tcp),
                 exit(abnormal)
