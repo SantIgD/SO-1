@@ -44,16 +44,14 @@ start() ->
     ok.
 
 
-aSequencerInit(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO) ->
+aSequencerInit(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO) -> 
     lists:foreach(fun (X) -> monitor_node(X, true) end, nodes()),
-    aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO).
-
-
+    aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO,[]).
 
 %
 %% aSequencer: crea el paquete 
 %
-aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO)-> 
+aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO, NumerosPerdidos)-> 
     receive
         {crearPaqueteSO, Mensaje, CantMensajesEnviados} -> 
 
@@ -70,7 +68,7 @@ aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, 
                     , DicMensajes),
                     
             %%io:format("[sequencer][Local] Diccionario  modificado: ~p~n",[dict:to_list(NewDic)]),
-            aSequencer(NewDic, OrdenMaximoAcordado, OrdenMaximoPropuesto+1, OrdenActual, TO);
+            aSequencer(NewDic, OrdenMaximoAcordado, OrdenMaximoPropuesto+1, OrdenActual, TO, NumerosPerdidos);
     
 
         {askingForOrder, Paquete} when is_record(Paquete, paqueteSinOrden) -> 
@@ -87,36 +85,59 @@ aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, 
                         , DicMensajes),
             %%io:format("[sequencer][askingForOrder]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
          
-            aSequencer(NewDic, OrdenMaximoAcordado, PropuestaOrden, OrdenActual, TO);
+            aSequencer(NewDic, OrdenMaximoAcordado, PropuestaOrden, OrdenActual, TO,NumerosPerdidos);
 
 
         {propuestaAcordada, IdentificadorMensaje, PropuestaAcordada} ->
 
-                NewOrdenMaxAcor = lists:max([PropuestaAcordada, OrdenMaximoAcordado]),
+                
+                
+                ListaMayores    = lists:filter(fun (X) -> X < PropuestaAcordada end, NumerosPerdidos),
+                Long = contarElementos(ListaMayores),
+                ValorAcordado = PropuestaAcordada - Long,
+                NewOrdenMaxAcor = lists:max([ValorAcordado, OrdenMaximoAcordado]),
+
+                io:format("ListaMayores:~p~nLong:~p~nValor Acordado nuevo ~p, Viejo ~p~n",[ListaMayores,Long,ValorAcordado,PropuestaAcordada]),
                 case dict:find(IdentificadorMensaje, DicMensajes) of
                 
                 {ok, {Mensaje,_OrdenPropuesto}} ->
                     %%io:format("[sequencer][propuestaAcordada]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
                     AuxDic = dict:erase(IdentificadorMensaje, DicMensajes),
-                    NewDic = dict:store(PropuestaAcordada
+                    NewDic = dict:store(ValorAcordado
                                     , Mensaje
                                     , AuxDic),
                     %%io:format("[sequencer][propuestaAcordada]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-                    aSequencer(NewDic, NewOrdenMaxAcor, OrdenMaximoPropuesto, OrdenActual, 0);
+                    aSequencer(NewDic, NewOrdenMaxAcor, OrdenMaximoPropuesto, OrdenActual, 0,NumerosPerdidos);
                    
                 error ->
                    %Estado inconsistente del sistema, MUERTE AL TRAIDOR  (Mensaje no encontrado en el diccionario) Antes te deberia haber llegado para que phagas tu propuesta
                     init:stop()
                 end;
         {nodedown, Node} ->
-             io:format("Se cayo un nodo~n"),
+
+            io:format("Se cayo un nodo~n"),
             Keys      = dict:fetch_keys(DicMensajes),
             TupleKeys = lists:filter(fun (X) -> is_tuple(X) end, Keys),
             NodeKey   = lists:filter(fun ({Nodo, _Contador}) -> Node == Nodo end, TupleKeys),
+            
             if NodeKey /= [] ->
                 io:format("Se cayo un nodo durante su propuesta ~n"),
-                init:stop(); % Estado inconsistente del sistema. Todos esperaban la respuesta de este y siguieron proponiendo numeros mayores. DEADLOCK
-               true -> aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO)
+                {_Msg, NumeroMensajePerdido} = dict:fetch(lists:nth(1,NodeKey), DicMensajes),
+                io:format("El numeroMensajePerdido es ~p~n",[NumeroMensajePerdido]),
+                NuevaNumerosPerdidos = NumerosPerdidos ++ [NumeroMensajePerdido],
+                OrderKeys = lists:filter(fun (X) -> is_tuple(X) == false end, Keys),
+                OrderKeysGreaterThanNMP = lists:filter(fun (X) -> X > NumeroMensajePerdido end, OrderKeys),
+                io:format("NuevaNumerosPerdidos ~p~n",[NuevaNumerosPerdidos]),
+
+                if OrderKeysGreaterThanNMP /= [] ->
+                   DiccionarioActualizado = reacomodarDiccionario(OrderKeysGreaterThanNMP, DicMensajes, []),
+                   aSequencer(DiccionarioActualizado, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO, NuevaNumerosPerdidos);
+                
+                   true -> aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO, NuevaNumerosPerdidos)
+                end;
+        
+                %init:stop(); % Estado inconsistente del sistema. Todos esperaban la respuesta de este y siguieron proponiendo numeros mayores. DEADLOCK
+               true -> aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO, NumerosPerdidos)
             end;
 
         {fin, From} -> 
@@ -135,13 +156,13 @@ aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, 
         TO -> OrdenSiguiente = OrdenActual+1, 
             case dict:find( OrdenSiguiente, DicMensajes) of
                 {ok, Msg} ->
-                            deliver ! {msg, Msg},
-                            %%io:format("[sequencer][TO]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
-                            NewDic = dict:erase(OrdenSiguiente, DicMensajes),
-                            %%io:format("[sequencer][TO]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
-                            aSequencer(NewDic,OrdenMaximoAcordado,OrdenMaximoPropuesto,  OrdenSiguiente, 0);
-        
-                error -> aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, infinity)
+                    deliver ! {msg, Msg},
+                    %%io:format("[sequencer][TO]Diccionario sin modificar: ~p~n",[dict:to_list(DicMensajes)]),
+                    NewDic = dict:erase(OrdenSiguiente, DicMensajes),
+                    %%io:format("[sequencer][TO]Diccionario modificado: ~p~n",[dict:to_list(NewDic)]),
+                    aSequencer(NewDic,OrdenMaximoAcordado,OrdenMaximoPropuesto,  OrdenSiguiente, 0,NumerosPerdidos);
+
+                error -> aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, infinity,NumerosPerdidos)
             end     
 
     end.
@@ -286,7 +307,7 @@ aSender(CantMensajesEnviados, DicMsgToSend, CantNodos) ->
             
         
             if 
-                Porcentaje >= 75 ->
+                Porcentaje >= 50 ->
 
                     io:format("[sender][nodedown] Diccionario sin modificar: ~p~n",[dict:to_list(DicMsgToSend)]),    
                     KeyListMsgToSend = dict:fetch_keys(DicMsgToSend),
@@ -399,4 +420,19 @@ stop() ->
     trySendFin(deliver, deliverFinOk),
     trySendFin(sender, senderFinOk),
     init:stop().
+
+reacomodarDiccionario([], Diccionario, [{N,Msg}]) ->
+
+    dict:store(N,Msg,Diccionario);
+
+reacomodarDiccionario([], Diccionario, [{N,Msg} | Tail]) ->
+
+    NewDiccionario = dict:store(N,Msg,Diccionario),
+    reacomodarDiccionario([], NewDiccionario, Tail);
+
+reacomodarDiccionario([Key|List], Diccionario, ToStore) ->
+    Mensaje = dict:fetch(Key,Diccionario),
+
+    NewToStore = ToStore ++ [{Key-1, Mensaje}],
+    reacomodarDiccionario(List, Diccionario, NewToStore).
 
