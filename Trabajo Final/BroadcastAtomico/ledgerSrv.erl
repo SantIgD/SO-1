@@ -87,6 +87,7 @@ entryPoint(IndiceSelector, ListenSocket) ->
                     end;
 
                 true -> 
+                    io:format("Se cerro la conxion con el servidor"),
                     cerrarSocket(ListenSocket),       
                     exit(abnormal)
             end;
@@ -96,13 +97,15 @@ entryPoint(IndiceSelector, ListenSocket) ->
 
             receive 
                {'EXIT', _Exiting_Process_Id, _Reason} -> 
+                   io:format("Se cerro la conxion con el servidor"),
                    cerrarSocket(ListenSocket),       
                    startEntry()
             after
                 0 ->
                     Nodes = nodes(connected),
                     if 
-                        Nodes == [] ->  
+                        Nodes == [] -> 
+                            io:format("Se cerro la conxion con el servidor"), 
                             cerrarSocket(ListenSocket),       
                             exit(abnormal);
 
@@ -112,13 +115,11 @@ entryPoint(IndiceSelector, ListenSocket) ->
                
                             
 
-        {error, _Reason} -> cerrarSocket(ListenSocket),
-                            exit(abnormal)  
+        {error, _Reason} -> 
+            io:format("Se cerro la conxion con el servidor"), 
+            cerrarSocket(ListenSocket),
+            exit(abnormal)  
     end.    
-    
-
-
-
 
 %
 %%socketHandler: Se encarga de recibir los socket de los
@@ -137,9 +138,13 @@ socketHandler(ListenSocket) ->
             
             Nodes = nodes(connected),
             if Nodes /= [] -> 
+                io:format("Se cerro la conxion con el servidor"),
+                unregister(socketHandler),
                 cerrarSocket(ListenSocket),
                 startEntry();
-            true -> exit(abnormal)
+
+            true -> unregister(socketHandler),
+                    exit(abnormal)
             end;
 
         Any -> io:format("Sino se envio ~p~n",[Any]),
@@ -174,7 +179,7 @@ tcp_handler(Socket, Node) ->
                     if 
                         Nodes /= [] ->
                             NewNode = lists:nth(rand:uniform(contarElementos(Nodes)), Nodes),
-                            monitor_node( NewNode, true),
+                            monitor_node(NewNode, true),
                             deliverMensaje(Mensaje, NewNode, Socket),
                             tcp_handler(Socket, NewNode);
 

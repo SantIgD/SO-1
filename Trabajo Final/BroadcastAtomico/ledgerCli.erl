@@ -30,7 +30,7 @@ intentarFinalizar(Objetivo, Respuesta) ->
 
         {fin, Id} -> 
             receive 
-                Respuesta -> unregister(Objetivo)
+                Respuesta -> ok
             after
                 5000 -> ok 
             end;
@@ -44,9 +44,9 @@ intentarFinalizar(Objetivo, Respuesta) ->
 stopCli()->
     
     io:format("Cerrando el cliente ~n"),
+    intentarFinalizar(receive_tcp, {receiveFinOk}),
     intentarFinalizar(clienteInfo, {contFinOk}),
     intentarFinalizar(send_tcp, {sendFinOk}),
-    intentarFinalizar(receive_tcp, {receiveFinOk}),
     io:format("Cliente cerrado exitosamente ~n"),
     init:stop(),
     chau.
@@ -102,8 +102,10 @@ clienteInfo(N, Socket)->
                      clienteInfo(Num, Socket);
 
         {fin, PId} -> 
-            cerrarSocket(Socket),
-            PId ! {contFinOk};
+            
+            unregister(clienteInfo),
+            PId ! {contFinOk},
+            cerrarSocket(Socket);
 
         {'EXIT', _Exiting_Process_Id, _Reason} -> unregister(clienteInfo),
                                                   cerrarSocket(Socket),   
@@ -142,6 +144,7 @@ send_tcp(Socket)->
         {fin, PId} -> 
             
             cerrarSocket(Socket),
+            unregister(send_tcp),
             PId ! {sendFinOk};
 
         {'EXIT', _Exiting_Process_Id, _Reason} -> 
@@ -178,6 +181,7 @@ receive_tcp(Socket) ->
         {error, timeout} -> 
             receive
                 {fin, PId} -> cerrarSocket(Socket),
+                              unregister(receive_tcp),
                               PId ! {receiveFinOk};
                 
                 {'EXIT', _Exiting_Process_Id, _Reason} -> unregister(receive_tcp),
@@ -188,8 +192,8 @@ receive_tcp(Socket) ->
             end;
 
         
-        {error, Reason} -> 
-            io:format("Error: ~p~n",[Reason]),
+        {error, _Reason} -> 
+            io:format("Hubo un error con la conexion, el cliente se va a cerrar ~n"),
             cerrarSocket(Socket),
             unregister(receive_tcp),
             exit(abnormal)
