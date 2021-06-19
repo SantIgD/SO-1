@@ -21,9 +21,6 @@
 %%c(broadcastAtomico,[{d,bandera}]). para cargar la bandera
 
 
-%%Nota: sacar el contador de cantida de propuestas
-
-
 
 %
 %% Se puede elegir entre el funcionamiento del broadcastAtomico
@@ -40,7 +37,7 @@
 %%start() se encarga de inicializar el nodo
 start() ->
 
-    io:format("Se inicia el nodo ~p~n",[node()]),
+    io:format("Se inicia el servicio de broadcastAtomico en el nodo ~p~n",[node()]),
     Nodos = nodes(),
     register(sequencer, spawn(?MODULE, aSequencerInit  , [dict:new(), 0, 0, 0, 0])),
     register(deliver  , spawn(?MODULE, aDeliverInit, [])),
@@ -51,6 +48,7 @@ start() ->
 %% aSequencerInit: Monitorea a todos los nodos e inicializa el sequencer
 %
 aSequencerInit(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO) -> 
+    process_flag(trap_exit, true),
     lists:foreach(fun (X) -> monitor_node(X, true) end, nodes()),
     aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO, []).
 
@@ -180,6 +178,7 @@ aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, 
 %% aDeliverInit: Se encarga de inicialiuzar el deliver. 
 %
 aDeliverInit()->
+    process_flag(trap_exit, true),
     link(whereis(sequencer)),
     aDeliver().
 
@@ -209,10 +208,11 @@ aDeliver() ->
 %% aSenderInit: Inicializa el proceso sender
 %
 aSenderInit(CantMensajesEnviados, DicMsgToSend, Nodos)->
+    process_flag(trap_exit, true),
     link(whereis(sequencer)),
     link(whereis(deliver)),
     CantNodos = contarElementos(Nodos) + 1,
-    lists:foreach(fun(X) -> monitor_node(X,true) end, Nodos),
+    lists:foreach(fun(X) -> monitor_node(X, true) end, Nodos),
     aSender(CantMensajesEnviados, DicMsgToSend, CantNodos).
 
 %
@@ -248,9 +248,7 @@ aSender(CantMensajesEnviados, DicMsgToSend, CantNodos) ->
 
                     lists:foreach(fun(X) -> {sequencer , X} ! {askingForOrder, PaqueteSO} end, Nodes),
                     %%io:format("Ya se mandaron, esperando...~n"),
-                    receive
-                    after 3000 -> ok
-                    end,
+                 
                     aSender(CantMensajesEnviados+1, NewDic, CantNodos);
 
                 {'EXIT', _Exiting_Process_Id, _Reason} ->

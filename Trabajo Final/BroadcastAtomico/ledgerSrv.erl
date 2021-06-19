@@ -4,40 +4,30 @@
 -export([startLedger/0,ledgerInit/3]).
 
 %%Funciones de control de la conexion tcp
--export([socketHandler/1,tcp_handlerInit/2]).
+-export([socketHandlerInit/1, tcp_handlerInit/2]).
 
 %%Funcion de control
--export([entryPointInit/1,startEntry/0]).
+-export([entryPointInit/1, startEntry/0]).
 
 %%Librerias importadas del broadcast atomico para el 
 %%funcionamiento del ledger
 -import(broadcastAtomico, [start/0, stop/0, aBroadcast/1]).
 
+%%Timeot de el accept
 -define(TIMEOUT, 1000).
 
 %%Puerto de conexion tcp
--define(Puerto, 1249).
+-define(Puerto, 1237).
 
-%
-%%startLedger:Inicializa el boradcast atomico y los actores principales de
-%           el ledger.
-startLedger() ->
 
-    start(),
-     
-    register(ledgersrv, spawn(?MODULE, ledgerInit,[[],[],[]])),
-    
-    ok.
-
-%
 %%startEntry : Inicializa la conexion tcp del server.
 %
 startEntry() ->
      case gen_tcp:listen(?Puerto, [binary, {active, false}]) of
 
         {ok, ListenSocket} -> 
-            spawn(?MODULE, entryPointInit,[ListenSocket]);
-    
+            io:format("Se pudo iniciar el nodo TCP del servidor de ledger"),
+            spawn(?MODULE, entryPointInit, [ListenSocket]);
     
         {error, Reason} -> 
             io:format("Falló escuchar el puerto por: ~p~n",[Reason])
@@ -49,7 +39,9 @@ startEntry() ->
 %                 Inicia con 1 ya que el contador debe empezar en 1
 
 entryPointInit(ListenSocket) ->
-    register(socketHandler, spawn_link(?MODULE, socketHandler,[ListenSocket])),
+
+    process_flag(trap_exit, true),
+    register(socketHandler, spawn_link(?MODULE, socketHandlerInit,[ListenSocket])),
     entryPoint(1, ListenSocket).
 
 
@@ -87,7 +79,7 @@ entryPoint(IndiceSelector, ListenSocket) ->
                     end;
 
                 true -> 
-                    io:format("Se cerro la conxion con el servidor"),
+                    io:format("[tcp] [entryPoint] Se cerro la conxion con el servidor~n"),
                     cerrarSocket(ListenSocket),       
                     exit(abnormal)
             end;
@@ -96,16 +88,16 @@ entryPoint(IndiceSelector, ListenSocket) ->
         {error, timeout} ->
 
             receive 
-               {'EXIT', _Exiting_Process_Id, _Reason} -> 
-                   io:format("Se cerro la conxion con el servidor"),
+                {'EXIT', _Exiting_Process_Id, _Reason} -> 
+                   io:format("[tcp] [entryPoint] Un proceso ha fallado. Se cerro la conxion con el servidor~n"),
                    cerrarSocket(ListenSocket),       
-                   startEntry()
+                   exit(normal)
             after
                 0 ->
                     Nodes = nodes(connected),
                     if 
                         Nodes == [] -> 
-                            io:format("Se cerro la conxion con el servidor"), 
+                            io:format("[tcp] [entryPoint] El servidor esta caido~n"), 
                             cerrarSocket(ListenSocket),       
                             exit(abnormal);
 
@@ -116,10 +108,16 @@ entryPoint(IndiceSelector, ListenSocket) ->
                             
 
         {error, _Reason} -> 
-            io:format("Se cerro la conxion con el servidor"), 
+            io:format("[tcp] [entryPoint] Se cerro la conxion con el servidor~n"), 
             cerrarSocket(ListenSocket),
             exit(abnormal)  
     end.    
+%
+%% socketHandlerInit: Inicializa el socketHandler
+%
+socketHandlerInit(ListenSocket)->
+    process_flag(trap_exit, true),
+    socketHandler(ListenSocket).
 
 %
 %%socketHandler: Se encarga de recibir los socket de los
@@ -137,18 +135,21 @@ socketHandler(ListenSocket) ->
         {'EXIT', _Exiting_Process_Id, _Reason} -> 
             
             Nodes = nodes(connected),
+
             if Nodes /= [] -> 
-                io:format("Se cerro la conxion con el servidor"),
+                io:format("Se cerro la conxion con el servidor~n"),
                 unregister(socketHandler),
                 cerrarSocket(ListenSocket),
-                startEntry();
+                exit(normal);
 
             true -> unregister(socketHandler),
-                    exit(abnormal)
+                    cerrarSocket(ListenSocket),
+                    exit(normal)
             end;
 
         Any -> io:format("Sino se envio ~p~n",[Any]),
-               stop()
+               %%stop()
+               exit(abnormal)
 
     end.
 
@@ -200,21 +201,34 @@ tcp_handler(Socket, Node) ->
             cerrarSocket(Socket),
             exit(abnormal)
     end.
+%
+%%startLedger:Inicializa el boradcast atomico y los actores principales de
+%           el ledger.
+startLedger() ->
 
+    start(), %Inicia procesos del BroadcastAtomico
+    io:format("Se inicio el nodo ~p del servidor de ledger~n",[node()]),
+    register(ledgersrv, spawn(?MODULE, ledgerInit, [[],[],[]])),
+    
+    ok.
+
+%
 %
 %%ledgerInit: Inicializa a la funcion ledger
 %
 ledgerInit(A,B,C) ->
 
+    process_flag(trap_exit, true),
     link(whereis(sequencer)),
     link(whereis(deliver)),
     link(whereis(sender)),
     ledger(A,B,C).
 
+
 %
 %%ledger: Se encarga de recibir y contestar las peteciones
 %         de los clientes
-ledger(S_i,StackGet,StackAppend)->
+ledger(S_i, StackGet, StackAppend)->
 
     receive
         {get, C, Socket} ->
@@ -244,10 +258,10 @@ ledger(S_i,StackGet,StackAppend)->
                             %%io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
                             TermToSend = term_to_binary({get, C, S_i}),
                             [TCP] = nodes(hidden),
-                            {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
+                            {socketHandler, TCP} ! {msgToSend, TermToSend, Socket},
                 
                             NewStackGet = lists:delete({Socket,C},StackGet),
-                            ledger(S_i, NewStackGet,StackAppend);
+                            ledger(S_i, NewStackGet, StackAppend);
                     
                         true -> 
                             ledger(S_i, StackGet,StackAppend)
@@ -262,7 +276,7 @@ ledger(S_i,StackGet,StackAppend)->
                             %io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
                             NewS_i = S_i ++ [R],
 
-                            Belong2 = lists:any(fun(X) -> X == {R,C} end,  StackAppend),
+                            Belong2 = lists:any(fun(X) -> X == {R, C} end,  StackAppend),
                             %io:format("Se comparo el elemento ~p en la lista ~p y el resultado es ~p~n",[{R,C},StackAppend, Belong2]),
                             if 
                                 Belong2 -> 
@@ -272,19 +286,20 @@ ledger(S_i,StackGet,StackAppend)->
                                     [TCP] = nodes(hidden),
                                     {socketHandler, TCP} ! {msgToSend, TermToSend ,Socket},
                                     
-                                    NewStackAppend = lists:delete({C,R},StackAppend),
-                                    ledger(NewS_i, StackGet,NewStackAppend);        
+                                    NewStackAppend = lists:delete({C, R}, StackAppend),
+                                    ledger(NewS_i, StackGet, NewStackAppend);        
 
                                 true -> 
-                                    ledger(NewS_i, StackGet,StackAppend)
+                                    ledger(NewS_i, StackGet, StackAppend)
                             end; 
                        
                         true -> 
-                            ledger(S_i, StackGet,StackAppend)
+                            ledger(S_i, StackGet, StackAppend)
                     end
             end;
 
         {'EXIT', _Exiting_Process_Id, _Reason} ->
+            io:format("[ledger] Un proceso ha fallado, el proceso ledger procede a terminar~n"),
             unregister(ledger),
             stop()
     end.
