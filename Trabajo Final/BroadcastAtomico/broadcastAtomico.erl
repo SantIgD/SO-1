@@ -127,10 +127,12 @@ aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, 
             if 
                 NodeKey /= [] ->
                     %io:format("Se cayo un nodo durante su propuesta ~n"),
+                    %NmsPerdidos = obtenerMensajesPerdidos(NodeKey, DicMensajes),
                     {_Msg, NumeroMensajePerdido} = dict:fetch(lists:nth(1,NodeKey), DicMensajes),
                     %io:format("El numeroMensajePerdido es ~p~n",[NumeroMensajePerdido]),
                     NuevaNumerosPerdidos = NumerosPerdidos ++ [NumeroMensajePerdido],
                     OrderKeys = lists:filter(fun (X) -> is_tuple(X) == false end, Keys),
+                    %OrderKeysGreaterThanNMP = obtenerOrdenesMayoresAPerdidos(NmsPerdidos, OrderKeys),
                     OrderKeysGreaterThanNMP = lists:filter(fun (X) -> X > NumeroMensajePerdido end, OrderKeys),
                     %io:format("NuevaNumerosPerdidos ~p~n",[NuevaNumerosPerdidos]),
 
