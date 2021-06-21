@@ -148,7 +148,7 @@ socketHandler(ListenSocket) ->
             end;
 
         Any -> io:format("Sino se envio ~p~n",[Any]),
-               %%stop()
+              
                exit(abnormal)
 
     end.
@@ -251,11 +251,11 @@ ledger(S_i, StackGet, StackAppend)->
                 {get, C, Socket} ->
 
                     Belong = lists:any(fun(X) -> X == {Socket,C} end, StackGet),
-                    %%io:format("Se comparo el elemento ~p en la lista ~p ~n",[{Socket,C},StackGet]),
+                   
                     if  
                         Belong -> 
 
-                            %%io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
+                           
                             TermToSend = term_to_binary({get, C, S_i}),
                             [TCP] = nodes(hidden),
                             {socketHandler, TCP} ! {msgToSend, TermToSend, Socket},
@@ -270,17 +270,17 @@ ledger(S_i, StackGet, StackAppend)->
                 {append, R, C, Socket} ->
                     
                     Belong = lists:any(fun(X) -> X == R end,  S_i),
-                    %io:format("Se comparo el elemento ~p en la lista ~p y el resultado es ~p ~n",[R,S_i,Belong]),
+                   
                     if  
                         Belong == false ->
-                            %io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),
+                           
                             NewS_i = S_i ++ [R],
 
                             Belong2 = lists:any(fun(X) -> X == {R, C} end,  StackAppend),
-                            %io:format("Se comparo el elemento ~p en la lista ~p y el resultado es ~p~n",[{R,C},StackAppend, Belong2]),
+                            
                             if 
                                 Belong2 -> 
-                            %       io:format("Se devuelve ~p a ~p ~n",[Response, Socket]),   
+                             
                                     TermToSend = term_to_binary({appendRes,ack,C}),
 
                                     [TCP] = nodes(hidden),
