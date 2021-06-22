@@ -13,7 +13,7 @@
 -define(Dir, "localhost").
 
 %%Puerto del server
--define(Puerto, 1237).
+-define(Puerto, 1239).
 
 %%Tiempo de espera del RECV
 -define(TIMEOUT, 1000).
@@ -55,6 +55,8 @@ clienteInfo(N, Socket)->
             PId ! {contFinOk},
             cerrarSocket(Socket);
 
+        {'EXIT', _Exiting_Process_Id, normal} ->
+            clienteInfo(N, Socket);
         {'EXIT', _Exiting_Process_Id, _Reason} -> 
             io:format("[clienteInfo] Un proceso ha fallado, el cliente se cerrara.~nSi desea volvere a iniciar el cliente utilice la funcion starCli().~n"),
             unregister(clienteInfo),
@@ -97,6 +99,9 @@ send_tcp(Socket)->
             unregister(send_tcp),
             PId ! {sendFinOk};
 
+        {'EXIT', _Exiting_Process_Id, normal} ->
+            send_tcp(Socket);
+
         {'EXIT', _Exiting_Process_Id, _Reason} -> 
 
             io:format("[send_tcp] Un proceso ha fallado, el cliente se desconecto.~nSi desea volver a iniciar el cliente utilice la funcion starCli().~n"),
@@ -136,6 +141,9 @@ receive_tcp(Socket) ->
                     unregister(receive_tcp),
                     PId ! {receiveFinOk};
                 
+                {'EXIT', _Exiting_Process_Id, normal} ->
+                    receive_tcp(Socket);
+                    
                 {'EXIT', _Exiting_Process_Id, _Reason} -> 
                     io:format("[receive_tcp] Un proceso ha fallado, el cliente se desconecto.~nSi desea volvere a iniciar el cliente utilice la funcion starCli().~n"),
                     unregister(receive_tcp),

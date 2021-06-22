@@ -17,7 +17,7 @@
 -define(TIMEOUT, 1000).
 
 %%Puerto de conexion tcp
--define(Puerto, 1237).
+-define(Puerto, 1239).
 
 
 %%startEntry : Inicializa la conexion tcp del server.
@@ -79,7 +79,7 @@ entryPoint(IndiceSelector, ListenSocket) ->
                     end;
 
                 true -> 
-                    io:format("[tcp] [entryPoint] Se cerro la conxion con el servidor~n"),
+                    io:format("[tcp] [entryPoint] Nodos vacios, Se cerro la conxion con el servidor~n"),
                     cerrarSocket(ListenSocket),       
                     exit(abnormal)
             end;
@@ -87,11 +87,14 @@ entryPoint(IndiceSelector, ListenSocket) ->
             
         {error, timeout} ->
 
-            receive 
+            receive
+                {'EXIT', _Exiting_Process_Id, normal} -> 
+                  entryPoint(IndiceSelector, ListenSocket);
                 {'EXIT', _Exiting_Process_Id, _Reason} -> 
+                 
                    io:format("[tcp] [entryPoint] Un proceso ha fallado. Se cerro la conxion con el servidor~n"),
                    cerrarSocket(ListenSocket),       
-                   exit(normal)
+                   exit(abnormal)
             after
                 0 ->
                     Nodes = nodes(connected),
@@ -107,8 +110,8 @@ entryPoint(IndiceSelector, ListenSocket) ->
                
                             
 
-        {error, _Reason} -> 
-            io:format("[tcp] [entryPoint] Se cerro la conxion con el servidor~n"), 
+        {error, Reason} -> 
+            io:format("[tcp] [entryPoint] Se cerro la conxion con el servidor, ~p ~n",[Reason]), 
             cerrarSocket(ListenSocket),
             exit(abnormal)  
     end.    
@@ -131,20 +134,25 @@ socketHandler(ListenSocket) ->
     
             trySend(Socket,Msj),
             socketHandler(ListenSocket);
-            
+
+        
+        {'EXIT', _Exiting_Process_Id, normal} ->
+            socketHandler(ListenSocket);
+
         {'EXIT', _Exiting_Process_Id, _Reason} -> 
             
             Nodes = nodes(connected),
-
+           
             if Nodes /= [] -> 
                 io:format("Se cerro la conxion con el servidor~n"),
                 unregister(socketHandler),
                 cerrarSocket(ListenSocket),
-                exit(normal);
+                exit(abnormal);
 
             true -> unregister(socketHandler),
+                    io:format("Nodos Vacios~n"),
                     cerrarSocket(ListenSocket),
-                    exit(normal)
+                    exit(abnormal)
             end;
 
         Any -> io:format("Sino se envio ~p~n",[Any]),
@@ -158,7 +166,7 @@ socketHandler(ListenSocket) ->
 %% tcp_handlerInit: inicializar el tcp_handler
 %
 tcp_handlerInit(Socket, Node)->
-
+  
     monitor_node(Node, true),
     tcp_handler(Socket, Node).
 
@@ -297,6 +305,9 @@ ledger(S_i, StackGet, StackAppend)->
                             ledger(S_i, StackGet, StackAppend)
                     end
             end;
+        
+        {'EXIT', _Exiting_Process_Id, normal} ->
+            ledger(S_i, StackGet, StackAppend);
 
         {'EXIT', _Exiting_Process_Id, _Reason} ->
             io:format("[ledger] Un proceso ha fallado, el proceso ledger procede a terminar~n"),

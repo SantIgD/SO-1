@@ -16,7 +16,7 @@
 
 %%Porcentaje minimo de nodos prendidos para que el
 %%server se mantenga operativo
--define(PORCENTAJE,30).
+-define(PORCENTAJE,75).
 
 %%c(broadcastAtomico,[{d,bandera}]). para cargar la bandera
 
@@ -148,6 +148,8 @@ aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, 
             From ! sequencerFinOk,
             exit(normal);
         
+        {'EXIT', _Exiting_Process_Id, normal} ->
+            aSequencer(DicMensajes, OrdenMaximoAcordado, OrdenMaximoPropuesto, OrdenActual, TO, NumerosPerdidos);
         {'EXIT', _Exiting_Process_Id, _Reason} ->
             stop();
         
@@ -193,6 +195,10 @@ aDeliver() ->
         {fin, From} -> 
             From ! deliverFinOk,
             exit(normal);
+
+        {'EXIT', _Exiting_Process_Id, normal} ->
+
+            aDeliver();
 
         {'EXIT', _Exiting_Process_Id, _Reason} ->
             stop();
@@ -247,6 +253,9 @@ aSender(CantMensajesEnviados, DicMsgToSend, CantNodos) ->
                 
                     aSender(CantMensajesEnviados+1, NewDic, CantNodos);
 
+                
+                {'EXIT', _Exiting_Process_Id, normal} ->
+                    aSender(CantMensajesEnviados, DicMsgToSend, CantNodos);
                 {'EXIT', _Exiting_Process_Id, _Reason} ->
                     stop()
 
@@ -320,6 +329,9 @@ aSender(CantMensajesEnviados, DicMsgToSend, CantNodos) ->
                 true -> io:format("La cantidad de nodos es insuficiente para mantener el servicio ~n"),    
                         init:stop()
             end;
+
+        {'EXIT', _Exiting_Process_Id, normal} ->
+            aSender(CantMensajesEnviados, DicMsgToSend, CantNodos);
         {'EXIT', _Exiting_Process_Id, _Reason} ->
             %Murio un hermano, chau
             stop();
